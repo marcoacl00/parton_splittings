@@ -23,8 +23,6 @@
 #include "TVectorT.h" 
 #include <ROOT/RDataFrame.hxx>*/
 
-//HOLIS
-
 // Aliases
 template <typename T>
 using vec = std::vector<T>;
