@@ -320,7 +320,7 @@ int main(int argc, char* argv[]) {
     double t0 = 0.0005;
     dt = 0.005;
 
-    for (int t = 0; t < 2000; t++){
+    for (int t = 0; t < 20; t++){
         
         double_c FT_b = compute_one_fourier_transform(F_b_sol, 0.0, omega*theta) * theta * theta / 2.0;
         
