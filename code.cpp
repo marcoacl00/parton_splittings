@@ -108,47 +108,9 @@ fourD_grid generate_zeros_grid(int N_entries){ //4D vector
     return grid;
 }
 
-void compute_dirac_partials(vec<vec<double_c>>& grad_v1, vec<vec<double_c>>& grad_v2){
-    //Default prec = 3
-
-    vec<vec<double_c>> dirac_delta(prec + 4, vec<double_c>(prec + 4, 0.0));
-
-
-    dirac_delta[(prec+3)/2][(prec+3)/2] = 1/(dx0 * dx0);
-
-    std::cout << "a" << std::endl;
-
-    /*vec<vec<double_c>> grad_v1_aux(prec, vec<double_c>(prec, 0.0));
-    vec<vec<double_c>> grad_v2_aux(prec, vec<double_c>(prec, 0.0));*/
-
-    for (int i = 0; i < prec+2; ++i) {
-        for (int j = 0; j < prec+2; ++j) {
-                // partial in v1-direction
-
-                grad_v1[i][j] = (dirac_delta[i+2][j+1] - 2.0*dirac_delta[i+1][j+1] + dirac_delta[i][j+1])/(2.0*dx0);
-                // partial in v2-direction
-                grad_v2[i][j] = (dirac_delta[i+1][j+2] - 2.0*dirac_delta[i+1][j+1] + dirac_delta[i+1][j])/(2.0*dx0);     
-
-        }
-    }
-}
 
 vec<double_c> delta;
 vec<double_c> d_delta;
-
-int grad_index(int k1){
-    int value;
-    if (abs(k1 - origin) <= 1){
-        value = k1 - origin + (prec + 1)/2;
-    }
-    else{
-        value = 0;
-    }
-
-    return value;
-}
-
-int T;
 
 //right hand side term of the shrodinger equation (dF/dt = rhs, where F = (Fa, Fb))
 void compute_rhs(const fourD_grid& Fa, const fourD_grid& Fb,
@@ -208,30 +170,6 @@ void compute_rhs(const fourD_grid& Fa, const fourD_grid& Fb,
 
     
 }
-
-
-/*void rk4_step(fourD_grid& F_a, fourD_grid& F_b, fourD_grid& RHS_a, fourD_grid& RHS_b, double_c (*M_aa)(int, int, int, int), 
-double_c (*M_ab)(int, int, int, int), double_c (*M_ba)(int, int, int, int), 
-double_c (*M_bb)(int, int, int, int)){
-
-
-    compute_rhs(F_a, F_b, M_aa, M_ab, M_ba, M_bb, RHS_a, RHS_b);
-
-
-    for (int i1 = 0; i1 < N; ++i1) {
-        for (int j1 = 0; j1 < N; ++j1) {
-            for (int k1 = 0; k1 < N; ++k1) {
-                for (int l1 = 0; l1 < N; ++l1) {
-                    //std::cout << i << j << k << l << (dt / 6.0) * (k1a[i][j][k][l] + 2.0 * k2a[i][j][k][l] + 2.0 * k3a[i][j][k][l] + k4a[i][j][k][l]) << std::endl;
-                    F_a[i1][j1][k1][l1] += dt * RHS_a[i1][j1][k1][l1];
-                    F_b[i1][j1][k1][l1] += dt * RHS_b[i1][j1][k1][l1];    
-                }
-            }
-        }
-    }
-
-
-}*/
 
 
 void rk4_step(fourD_grid& F_a, fourD_grid& F_b, fourD_grid& F_a_aux, fourD_grid& F_b_aux, fourD_grid& RHS_a, fourD_grid& RHS_b, 
@@ -318,7 +256,7 @@ double_c Matrix_bb(int i1, int j1, int k1, int l1){ //z^2(1-z)^2(u^2 - v^2)
         return -qF/(4.0 * CF) * ((CF - Nc*z*(1-z)) * ((V[i1] - V[k1])*(V[i1] - V[k1]) + (V[j1] - V[l1])*(V[j1] - V[l1])));
     }
 
-
+//Compute F(p)
 double_c compute_one_fourier_transform(fourD_grid F_test, double px, double py){
 
         double_c sum = 0.0;
@@ -343,13 +281,6 @@ int main(int argc, char* argv[]) {
     std::chrono::steady_clock sc;   
     auto start = sc.now(); 
     
-    /*fourD_grid dirac_delta = generate_zeros_grid(N);
-    grad_delta_v1 = dirac_delta;
-    grad_delta_v2 = dirac_delta;
-    
-    generate_dirac_delta_v(dirac_delta);
-    
-    compute_dirac_partials(dirac_delta, grad_delta_v1, grad_delta_v2);*/
 
     for(int i = 0; i < 2; i++){
         std::cout << V[i] << std::endl;
@@ -383,7 +314,6 @@ int main(int argc, char* argv[]) {
     fourD_grid k3b = F_a_sol;
     fourD_grid k4b = F_a_sol;
 
-    //std::cout << F_a_sol[2][2][3][2] << std::endl;
 
     std::ofstream out_hist("F_time.txt", std::ios::trunc);
 
@@ -392,18 +322,15 @@ int main(int argc, char* argv[]) {
 
     for (int t = 0; t < 2000; t++){
         
-        //double_c FT_a = compute_one_fourier_transform(F_a_sol, omega * theta, 0) * theta*  theta / 2.0;
         double_c FT_b = compute_one_fourier_transform(F_b_sol, 0.0, omega*theta) * theta * theta / 2.0;
         
 
         std::cout << "Step " << t << ": " << "t = " << t0 + t*dt << " " << std::real(FT_b)<< std::endl;
-        //std::cout << F_b_sol[origin][origin][origin][origin] << std::endl;
-        //std::cout << F_b_sol[N-1][N-1][N-1][N-1] << std::endl;
+
 
         out_hist << t*dt << "     " << std::real(FT_b) << std::endl;
 
         rk4_step(F_a_sol, F_b_sol, Fa_aux, Fb_aux, RHSa, RHSb, k1a, k2a, k3a, k4a, k1b, k2b, k3b, k4b, Matrix_aa, Matrix_ab, Matrix_ba, Matrix_bb, t0 + t*dt);
-        //rk4_step(F_a_sol, F_b_sol, RHSa, RHSb, Matrix_aa, Matrix_ab, Matrix_ba, Matrix_bb);
 
 
     }
