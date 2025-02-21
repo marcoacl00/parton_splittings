@@ -17,5 +17,5 @@ for n_par in range(len(parameters)):
     L = parameters[n_par, 4]
     theta = np.linspace(0.1, 0.9, int(parameters[n_par, 5]))
     NcMode = "LargeNc"
-
+    
     main(N, En, z, qF, L, theta, NcMode)

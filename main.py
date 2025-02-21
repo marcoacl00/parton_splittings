@@ -35,14 +35,14 @@ def main(N, Evar, z, qFvar, L, theta, NcMode):
 
     Nu1 = 2*N
     Nu2 = N
-    Nv1 = N
-    Nv2 = N//2
+    Nv1 = 2*N
+    Nv2 = N
 
     #grid parameters
-    U1 = np.linspace(-L/2, L/2, Nu1)
-    U2 = np.linspace(-L/2, L/2, Nu2)
-    V1 = np.linspace(-L/2, L/2, Nv1)
-    V2 = np.linspace(-L/2, L/2, Nv2)
+    U1 = np.linspace(-L, L, Nu1)
+    U2 = np.linspace(-L, L, Nu2)
+    V1 = np.linspace(-L, L, Nv1)
+    V2 = np.linspace(-L, L, Nv2)
 
 
     origin_v1 = Nv1//2
@@ -53,7 +53,7 @@ def main(N, Evar, z, qFvar, L, theta, NcMode):
     du2 = U2[1] - U2[0]
     dv1 = V1[1] - V1[0]
     dv2 = V2[1] - V2[0]
-    ht = 0.02
+    ht = 0.04
 
     #DIRAC DELTA AND DERIVATIVE
     delta_v1 = np.zeros(Nv1)
@@ -260,7 +260,7 @@ def main(N, Evar, z, qFvar, L, theta, NcMode):
     m = 0
     while True:
         coeff_list.append(coeff(m, htau))
-        if abs(coeff_list[-1]) < 1e-16:
+        if abs(coeff_list[-1]) < 1e-6:
             break
         else:
             m += 1
@@ -380,12 +380,14 @@ def main(N, Evar, z, qFvar, L, theta, NcMode):
         sum = np.array([.0j, .0j])
         dVol = du1 * du2 * dv1 * dv2
         for sigma in range(2):
-            X1 = X[sigma, :]
+            #X1 = X[sigma, :]
             for i1 in range(1, Nu1-1):
                 for i2 in range(1, Nu2-1):
                     for j1 in range(1, Nv1-1):
                         for j2 in range(1, Nv2-1):
-                            sum[sigma] +=  compute_value_cell(X1, i1, i2, j1, j2, px, py)
+                            #sum[sigma] +=  compute_value_cell(X1, i1, i2, j1, j2, px, py)
+                            exponent_factor = np.exp(-1j * (px * (U1[i1] - V1[j1]) + py * (U2[i2] - V2[j2])))
+                            sum[sigma] += exponent_factor * X[sigma, i1, i2, j1, j2]
 
         return sum * dVol
     
