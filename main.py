@@ -40,9 +40,9 @@ def main(N, Evar, z, qFvar, L, theta, NcMode):
 
     #grid parameters
     U1 = np.linspace(-L, L, Nu1)
-    U2 = np.linspace(-L, L, Nu2)
+    U2 = np.linspace(-L/2, L/2, Nu2)
     V1 = np.linspace(-L, L, Nv1)
-    V2 = np.linspace(-L, L, Nv2)
+    V2 = np.linspace(-L/2, L/2, Nv2)
 
 
     origin_v1 = Nv1//2
@@ -53,7 +53,7 @@ def main(N, Evar, z, qFvar, L, theta, NcMode):
     du2 = U2[1] - U2[0]
     dv1 = V1[1] - V1[0]
     dv2 = V2[1] - V2[0]
-    ht = 0.04
+    ht = 0.005
 
     #DIRAC DELTA AND DERIVATIVE
     delta_v1 = np.zeros(Nv1)
@@ -95,6 +95,7 @@ def main(N, Evar, z, qFvar, L, theta, NcMode):
         
         return -qF / (4.0 * CF) * element 
     
+    @jit(nopython=True)
     def V_LargeNc(sig1, sig2, i1, i2, j1, j2):
         if sig1 == 0 and sig2 == 0:
             element = (U1[i1]*U1[i1] + U2[i2]*U2[i2] + V1[j1]*V1[j1] + V2[j2]*V2[j2])
@@ -153,10 +154,11 @@ def main(N, Evar, z, qFvar, L, theta, NcMode):
                     for i2 in range(1,Nu2-1):
                         for j1 in range(1,Nv1-1):
                             for j2 in range(1,Nv2-1):
-                                V_field[sig, sigp, i1,i2,j1,j2] = V(sig, sigp, i1, i2, j1, j2)
+                                V_field[sig, sigp, i1,i2,j1,j2] = V(sig, sigp, i1, i2, j1, j2) + 0j
                                 
         return V_field
     
+    @jit(nopython=True, parallel=True)
     def compute_V_Nc():
         V_field2 = np.zeros(shape=(2, 2, Nu1, Nu2, Nv1, Nv2)) + 0j
         for sig in range(2):
@@ -165,7 +167,7 @@ def main(N, Evar, z, qFvar, L, theta, NcMode):
                     for i2 in range(1,Nu2-1):
                         for j1 in range(1,Nv1-1):
                             for j2 in range(1,Nv2-1):
-                                V_field2[sig, sigp, i1,i2,j1,j2] = V_LargeNc(sig, sigp, i1, i2, j1, j2)
+                                V_field2[sig, sigp, i1,i2,j1,j2] = V_LargeNc(sig, sigp, i1, i2, j1, j2) + 0j
                                 
         return V_field2
 
@@ -182,12 +184,11 @@ def main(N, Evar, z, qFvar, L, theta, NcMode):
         return NHT
     
     
-    
     def compute_derivative_4D(F, hu1, hu2, hv1, hv2):
 
         part_u1 = np.zeros(shape=(2, Nu1, Nu2, Nv1, Nv2)) +0j
        
-
+        
         part_u1[:, 1:-1, 1:-1, 1:-1,1:-1] = F[:, 2:, 1:-1, 1:-1,1:-1] - 2 * F[:, 1:-1, 1:-1, 1:-1,1:-1] + F[:, :-2, 1:-1, 1:-1,1:-1]
         part_u1*= 1/(hu1**2)
 
@@ -208,6 +209,69 @@ def main(N, Evar, z, qFvar, L, theta, NcMode):
 
         return np.array([part_u1, part_u2, part_v1, part_v2])
 
+    @jit(nopython=True, parallel = True)
+    def compute_derivative2_u1(F, sig, i1,i2,j1,j2, hu1):
+
+        deriv = F[sig, i1 + 1, i2, j1, j2] - 2 * F[sig, i1 , i2, j1, j2] + F[sig, i1-1 , i2, j1, j2]
+        deriv *= (1/hu1**2)
+
+        return deriv
+
+    @jit(nopython=True, parallel = True)
+    def compute_derivative2_u2(F, sig, i1,i2,j1,j2, hu1):
+
+        deriv = F[sig, i1 , i2 + 1, j1, j2] - 2 * F[sig, i1 , i2, j1, j2] +  F[sig, i1 , i2-1, j1, j2]
+        deriv *= 1/(hu1**2)
+
+        return deriv
+    
+    @jit(nopython=True, parallel = True)
+    def compute_derivative2_v1(F, sig, i1,i2,j1,j2, hu1):
+
+        deriv = F[sig, i1, i2, j1 + 1, j2] - 2 * F[sig, i1 , i2, j1, j2] +  F[sig, i1 , i2, j1 - 1, j2]
+        deriv *= 1/(hu1**2)
+
+        return deriv
+    
+    @jit(nopython=True, parallel = True)
+    def compute_derivative2_v2(F, sig, i1,i2,j1,j2, hu1):
+
+        deriv = F[sig, i1, i2, j1, j2 + 1] - 2 * F[sig, i1 , i2, j1, j2] +  F[sig, i1, i2, j1, j2 - 1]
+        deriv *= 1/(hu1**2)
+
+        return deriv
+    
+    @jit(nopython=True, parallel = True)
+    def compute_kin_term_deriv(F, c_L, lamb):
+            f_1 = .0 * F
+            for sig in range(2):
+                for i1 in range(1,Nu1-1):
+                    for i2 in range(1,Nu2-1):
+                        for j1 in range(1,Nv1-1):
+                            for j2 in range(1,Nv2-1):
+                                ddu1 = compute_derivative2_u1(F, sig, i1, i2, j1, j2, du1)
+                                ddu2 = compute_derivative2_u2(F, sig, i1, i2, j1, j2, du2)
+                                ddv1 = compute_derivative2_v1(F, sig, i1, i2, j1, j2, dv1)
+                                ddv2 = compute_derivative2_v2(F, sig, i1, i2, j1, j2, dv2)
+                                f_1[sig, i1, i2, j1, j2] = ddu1 + ddu2 - ddv1 - ddv2
+                            
+            f_1 *= (c_L / lamb)
+            return f_1
+
+    @jit(nopython=True, parallel = True)
+    def compute_pot_term(F, Vfield, lamb):
+        f_1 = .0 * F
+        for sig in range(2):
+            for sigp in range(2):
+                for i1 in range(1,Nu1-1):
+                    for i2 in range(1,Nu2-1):
+                        for j1 in range(1,Nv1-1):
+                            for j2 in range(1,Nv2-1):
+                                V = V_LargeNc(sig, sigp, i1, i2, j1, j2) + 0j
+                                f_1[sig, i1, i2, j1, j2] =  1j * V *F[sigp, i1, i2, j1, j2] / lamb
+                            
+        return f_1
+    
 
 
     if(NcMode == "LargeNc"):
@@ -272,49 +336,25 @@ def main(N, Evar, z, qFvar, L, theta, NcMode):
     Np = np.max(np.size(coeff_arr))
     print("Polynomial number = ", Np, "\n")
 
-    c_L = -1/(2*omega) / lambda_F 
+    c_L = -1/(2 * omega) 
 
     def faber_exp(f, Np, Vfield): #compute U(ht)*f
         """Computes e^(-iHdt)f using the Faber expansion. 
         Takes a 4D vector F, the number of polynomials Np and the potential field V"""
         fH_0 = f
-        fH_1 = .0 * f
+        
         #fH_1 calculation
 
-        part_derivs = compute_derivative_4D(fH_0, du1, du2, dv1, dv2)
-
-        fH_1 = part_derivs[0] + part_derivs[1] - part_derivs[2] - part_derivs[3]
-        fH_1 *= c_L
-
-        print(part_derivs.shape)
-
-        #Deriv_s1 = np.fft.fft(f)
-        #Deriv_s2 = np.linspace(0, N-1, N)
-
-        for sig in range(2):
-            for sigp in range(2):
-                fH_1[sig, :, :, :, :] +=  1j * Vfield[sig, sigp, :, :, :, :]*fH_0[sigp, :, :, :, :] / lambda_F
-
+        fH_1 = compute_kin_term_deriv(fH_0, c_L, lambda_F) 
+        fH_1 += compute_pot_term(fH_0, Vfield, lambda_F)
 
         fH_1 -= gamma_0 * fH_0
 
         #print("Before-derivative ", np.max(fH_1))
 
-        fH_2 = .0 * f
-        #fH_2
+        fH_2 = compute_kin_term_deriv(fH_1, c_L, lambda_F) 
+        fH_2 += compute_pot_term(fH_1, Vfield, lambda_F)
 
-        part_derivs = compute_derivative_4D(fH_1, du1, du2, dv1, dv2)
-
-        fH_2 = part_derivs[0] + part_derivs[1] - part_derivs[2] - part_derivs[3]
-        fH_2*= c_L
-
-        #print("Post-derivative ", np.max(fH_2))
-
-        for sig in range(2):
-            for sigp in range(2):
-                fH_2[sig,:,:, :, :] +=  1j *Vfield[sig, sigp, :,:, :, :]*fH_1[sigp, :,:, :, :] / lambda_F
-        
-        #print("Post-potential ", np.max(fH_2))
 
         fH_2 += -gamma_0 * fH_1 - 2 * gamma_1*fH_0
 
@@ -330,19 +370,12 @@ def main(N, Evar, z, qFvar, L, theta, NcMode):
         for k in range(3, Np):
             fH_0 = fH_1
             fH_1 = fH_2
-            fH_2 = .0 * fH_1
 
-            part_derivs = compute_derivative_4D(fH_1, du1, du2, dv1, dv2)
 
-            fH_2 = part_derivs[0] + part_derivs[1] - part_derivs[2] - part_derivs[3]
-            fH_2*= c_L
-
-            for sig in range(2):
-                for sigp in range(2):
-                    fH_2[sig, :,:, :, :] +=  1j *Vfield[sig, sigp, :,:, :, :]* fH_1[sigp, :,:, :, :] / lambda_F
+            fH_2 = compute_kin_term_deriv(fH_1, c_L, lambda_F) / lambda_F
+            fH_2 += compute_pot_term(fH_1, c_L, lambda_F)
 
             fH_2 += -gamma_0 * fH_1 - gamma_1*fH_0
-
 
             Uf_est += coeff_arr[k] * fH_2
 
