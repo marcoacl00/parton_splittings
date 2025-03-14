@@ -23,30 +23,31 @@ import os
 def main(N, Evar, z, qFvar, L, theta, NcMode):
     fm = 5.067
 
-    E = Evar * fm
-    omega = E*z*(1-z)  
-    print(qFvar)
-    qF = qFvar * fm * fm
+    E = np.float32(Evar * fm)
+    omega = np.float32(E*z*(1-z))
+
+    qF = np.float32(qFvar * fm * fm)
+
     Omega = (1.0 - 1.0j)/2.0 * np.sqrt(qF / omega)
     Nc = 3
     CF = (Nc * Nc - 1)/(2*Nc)
 
     print("Omega = ", omega)
 
-    Nu1 = 4*N
-    Nu2 = 2*N
+    Nu1 = 2*N
+    Nu2 = N
     Nv1 = 2*N
     Nv2 = N
 
-    L_dom_x = 3 * np.pi / (E * z * (1-z) * theta)
+    L_dom_x = np.float32(np.pi / (E * z * (1-z) * theta))
 
     print("Domain length = ", L_dom_x)
 
     #grid parameters
-    U1 = np.linspace(-L_dom_x, L_dom_x, Nu1)
-    U2 = np.linspace(-L_dom_x, L_dom_x, Nu2)
-    V1 = np.linspace(-L_dom_x, L_dom_x, Nv1)
-    V2 = np.linspace(-L_dom_x, L_dom_x, Nv2)
+    U1 = np.linspace(-L_dom_x, L_dom_x, Nu1, dtype=np.float32)
+    U2 = np.linspace(-L_dom_x, L_dom_x, Nu2, dtype=np.float32)
+    V1 = np.linspace(-L_dom_x, L_dom_x, Nv1, dtype=np.float32)
+    V2 = np.linspace(-L_dom_x, L_dom_x, Nv2, dtype=np.float32)
 
 
     origin_v1 = Nv1//2
@@ -57,11 +58,11 @@ def main(N, Evar, z, qFvar, L, theta, NcMode):
     du2 = U2[1] - U2[0]
     dv1 = V1[1] - V1[0]
     dv2 = V2[1] - V2[0]
-    ht = 0.02
+    ht = 0.002
 
     #DIRAC DELTA AND DERIVATIVE
-    delta_v1 = np.zeros(Nv1)
-    d_delta_v1 = np.zeros(Nv1)
+    delta_v1 = np.zeros(Nv1, dtype=np.float32)
+    d_delta_v1 = np.zeros(Nv1, dtype=np.float32)
 
     delta_v1[origin_v1-1] = 1/(2 * dv1)
     delta_v1[origin_v1] = 1/(2 * dv1)
@@ -69,8 +70,8 @@ def main(N, Evar, z, qFvar, L, theta, NcMode):
     d_delta_v1[origin_v1-1] = 1/(dv1*dv1)
     d_delta_v1[origin_v1] = -1/(dv1*dv1) 
 
-    delta_v2 = np.zeros(Nv2)
-    d_delta_v2 = np.zeros(Nv2)
+    delta_v2 = np.zeros(Nv2, dtype=np.float32)
+    d_delta_v2 = np.zeros(Nv2, dtype=np.float32)
     
     delta_v2[origin_v2-1] = 1/(2 * dv2)
     delta_v2[origin_v2] = 1/(2 * dv2)
@@ -130,7 +131,7 @@ def main(N, Evar, z, qFvar, L, theta, NcMode):
 
         return non_hom_term 
 
-
+    @jit(nopython = True)
     def fasit2Ncdiag(t,L,p1,p2,z):
         pre= -2*1j*omega
         
@@ -138,7 +139,7 @@ def main(N, Evar, z, qFvar, L, theta, NcMode):
         den = 2*omega*Omega/np.tan(Omega*t)+1j*qF*(z**2+(1-z)**2)*(L-t)
         
         return pre*(1-num/den*np.exp(-1j*(p1**2+p2**2)/den))
-
+    
     def fasit2Ncdiagint(L,p1,p2,z):
         def real_fas(t,L,p1,p2,z):
             return np.real(fasit2Ncdiag(t,L,p1,p2,z))
@@ -148,37 +149,10 @@ def main(N, Evar, z, qFvar, L, theta, NcMode):
         im = quad(imag_fas,0,L,args=(L,p1,p2,z))[0]
         
         return re + 1j*im
-
-
-    @jit(nopython=True, parallel=True)
-    def compute_V():
-        V_field = np.zeros(shape=(2, 2, Nu1, Nu2, Nv1, Nv2)) + 0j
-        for sig in range(2):
-            for sigp in range(2):
-                for i1 in range(1,Nu1-1):
-                    for i2 in range(1,Nu2-1):
-                        for j1 in range(1,Nv1-1):
-                            for j2 in range(1,Nv2-1):
-                                V_field[sig, sigp, i1,i2,j1,j2] = V(sig, sigp, i1, i2, j1, j2) + 0j
-                                
-        return V_field
     
-    @jit(nopython=True, parallel=True)
-    def compute_V_Nc():
-        V_field2 = np.zeros(shape=(2, 2, Nu1, Nu2, Nv1, Nv2)) + 0j
-        for sig in range(2):
-            for sigp in range(2):
-                for i1 in range(1,Nu1-1):
-                    for i2 in range(1,Nu2-1):
-                        for j1 in range(1,Nv1-1):
-                            for j2 in range(1,Nv2-1):
-                                V_field2[sig, sigp, i1,i2,j1,j2] = V_LargeNc(sig, sigp, i1, i2, j1, j2) + 0j
-                                
-        return V_field2
-
     @jit(parallel = True, nopython = True)
     def compute_non_hom(t):
-        NHT = np.zeros(shape=(2, Nu1, Nu2, Nv1, Nv2)) + 0j
+        NHT = np.zeros(shape=(2, Nu1, Nu2, Nv1, Nv2), dtype=np.complex64) + 0j
         for sig in range(2):
             for i1 in range(1, Nu1-1):
                 for i2 in range(1, Nu2-1):
@@ -189,30 +163,6 @@ def main(N, Evar, z, qFvar, L, theta, NcMode):
         return NHT
     
     
-    def compute_derivative_4D(F, hu1, hu2, hv1, hv2):
-
-        part_u1 = np.zeros(shape=(2, Nu1, Nu2, Nv1, Nv2)) +0j
-       
-        
-        part_u1[:, 1:-1, 1:-1, 1:-1,1:-1] = F[:, 2:, 1:-1, 1:-1,1:-1] - 2 * F[:, 1:-1, 1:-1, 1:-1,1:-1] + F[:, :-2, 1:-1, 1:-1,1:-1]
-        part_u1*= 1/(hu1**2)
-
-
-        part_u2 = np.zeros(shape=(2, Nu1, Nu2, Nv1, Nv2)) +0j
-
-
-        part_u2[:, 1:-1, 1:-1, 1:-1,1:-1] = F[:, 1:-1, 2:, 1:-1,1:-1] - 2 * F[:, 1:-1, 1:-1, 1:-1,1:-1] + F[:, 1:-1, :-2, 1:-1,1:-1]
-        part_u2 *= 1/(hu2**2)
-        
-        part_v1 = .0 * part_u1
-        part_v1[:, 1:-1, 1:-1, 1:-1,1:-1] = F[:, 1:-1, 1:-1, 2:,1:-1] - 2 * F[:, 1:-1, 1:-1, 1:-1,1:-1] + F[:, 1:-1, 1:-1, :-2,1:-1]
-        part_v1 *= 1/(hv1**2)
-
-        part_v2 = .0 * part_u1
-        part_v2[:, 1:-1, 1:-1, 1:-1,1:-1] = F[:, 1:-1, 1:-1, 1:-1,2:] - 2 * F[:, 1:-1, 1:-1, 1:-1,1:-1] + F[:, 1:-1, 1:-1, 1:-1,:-2]
-        part_v2 *= 1/(hv2**2)
-
-        return np.array([part_u1, part_u2, part_v1, part_v2])
 
     @jit(nopython=True)
     def compute_derivative2_u1(F, sig, i1,i2,j1,j2, hu1):
@@ -272,24 +222,12 @@ def main(N, Evar, z, qFvar, L, theta, NcMode):
                     for i2 in range(1,Nu2-1):
                         for j1 in range(1,Nv1-1):
                             for j2 in range(1,Nv2-1):
-                                V_sigsip = V(sig, sigp, i1, i2, j1, j2) + 0j
+                                V_sigsip = V_LargeNc(sig, sigp, i1, i2, j1, j2) + 0j
                                 f_1[sig, i1, i2, j1, j2] +=  1j * V_sigsip * F[sigp, i1, i2, j1, j2] / lamb
                             
         return f_1
     
 
-
-    #if(NcMode == "LargeNc"):
-    #    VfieldNc = compute_V_Nc()
-    #    print("V LargeNc computed \n")
-
-
-    #elif(NcMode == "FiniteNc"):
-    #    VfieldNc = compute_V()
-    #    print("V FiniteNc computed \n")
-
-    #else:
-    #    print("ERROR")
 
 
     #Spectral properties of the hamiltonian for Faber expansion
@@ -333,10 +271,12 @@ def main(N, Evar, z, qFvar, L, theta, NcMode):
             break
         else:
             m += 1
-    print(coeff_list)
+   
    
 
-    coeff_arr = np.array(coeff_list)
+    coeff_arr = np.array(coeff_list, dtype=np.complex64)
+
+    print(coeff_arr)
 
     Np = np.max(np.size(coeff_arr))
     print("Polynomial number = ", Np, "\n")
@@ -392,30 +332,17 @@ def main(N, Evar, z, qFvar, L, theta, NcMode):
         return Uf_est
 
 
-    T_prime = np.arange(0, L, ht)
+    T_prime = np.arange(0, L, ht, dtype=np.float32)
 
     #Fp_prime = np.zeros(len(T_prime))
     Fmed_Nc = .0 * T_prime
     t0 = 1e-6 * ht
 
-    
-
-    @jit(parallel = True, nopython = True)
-    def compute_value_cell(F, i1, i2, j1, j2, px, py):
-        val = 0 + 0j
-        for ii1 in [-1, 0,1]:
-            for ii2 in [-1, 0,1]:
-                for jj1 in [-1, 0,1]:
-                    for jj2 in [-1, 0,1]:
-                        exponent_factor = np.exp(-1j * (px * (U1[i1 + ii1] - V1[j1 + jj1]) + py * (U2[i2 + ii2] - V2[j2 + jj2])))
-                        val += F[i1 + ii1, i2 + ii2, j1 + jj1, j2 + jj2] * exponent_factor
-        
-        return val / 3**4
 
 
     @jit(parallel = True, nopython = True)                    
     def compute_fourier(X, px, py):
-        sum = np.array([.0j, .0j])
+        sum = np.array([.0j, .0j], dtype = np.complex64)
         dVol = du1 * du2 * dv1 * dv2
         for sigma in range(2):
             #X1 = X[sigma, :]
@@ -438,7 +365,7 @@ def main(N, Evar, z, qFvar, L, theta, NcMode):
         file.write(f"{T_prime[0]} \t {0.000}\t {0.000}\n")
 
 
-    F = np.zeros(shape=(2, Nu1, Nu2, Nv1, Nv2)) + 0j
+    F = np.zeros(shape=(2, Nu1, Nu2, Nv1, Nv2), dtype = np.complex64) + 0j
     for i in range (1, len(T_prime)):
         yi  = F + 1/2 * compute_non_hom(T_prime[i-1] + t0) * ht 
         

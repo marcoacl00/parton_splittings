@@ -1,4 +1,4 @@
-from main import *
+from main_f32 import *
 
 #E[GeV], z, qF, L[fm], theta, NcMode
 #NcMode: LargeNc or FiniteNc
@@ -15,7 +15,7 @@ for n_par in range(len(parameters)):
     z = parameters[n_par, 2]
     qF = parameters[n_par, 3]
     L = parameters[n_par, 4]
-    theta = np.linspace(0.1, 0.9, int(parameters[n_par, 5]))
+    theta = parameters[n_par, 5]
     NcMode = "LargeNc"
     
     main(N, En, z, qF, L, theta, NcMode)

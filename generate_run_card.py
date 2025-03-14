@@ -9,10 +9,10 @@ E_range = np.array([10.0, 100.0])
 z_range = np.arange(0.1, 0.800, 0.2).round(4)
 qF_range = np.array([1.5])
 L_range = np.array([2.0])
-theta_range = np.array([3])
+theta = np.array([0.1, 0.3, 0.5, 0.7, 0.9])
 
 with open(output_name, 'w') as file:
         for N, E, z, qF, L, theta in product(N_range,E_range, z_range, qF_range, 
-                                      L_range, theta_range):
+                                      L_range, theta):
             file.write(f"{N} \t{E} \t {z}\t {qF} \t {L} \t {theta} \n")
 

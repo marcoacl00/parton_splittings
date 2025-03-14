@@ -103,7 +103,7 @@ vec<double> generateVector() { //N entrances list with positions (steps of dx)
 vec<double> V = generateVector();
 
 
-// Grid initialization for F(u1, u2, v1, v2, t)
+// Grid initialization for F(u1, u2, v1, v2)
 fourD_grid generate_zeros_grid(int N_entries){ //4D vector
 
     //Define 4D grid
