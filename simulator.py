@@ -28,8 +28,8 @@ def simulate(sist, ht, t_L):
             (i1, i2, j1, j2)
             for i1 in range(1, sis.Nu1 - 1)
             for i2 in range(1, sis.Nu2 - 1)
-            for j1 in range(1, sis.Nv1 - 1)
-            for j2 in range(1, sis.Nv2 - 1)
+            for j1 in range(sis.Nv1//2 - 1, sis.Nv1//2+1)
+            for j2 in range(sis.Nv2//2 - 1, sis.Nv2//2+1)
         ]
 
         # Parallel computation of source_term for all index combinations
@@ -50,20 +50,23 @@ def simulate(sist, ht, t_L):
 
         print("Processing t = ", sis.t)
 
-        nHom = compute_nHom_parallel(sis, sis.t-ht)
         
         #construct Faber evolved solution
-        sis.set_fsol(sis.Fsol + 1/2 * nHom * ht)
-        f_sol_n = faber_expand(sis, ht)
+        nHom = compute_nHom_parallel(sis, sis.t)
+
+        sis.set_fsol(sis.Fsol + nHom * ht / 2)
+        f_sol_n = faber_expand(sis , ht)
 
         #Build non homogneous term at t = sis.t + ht
-        nHom = compute_nHom_parallel(sis, sis.t)
+        nHom = compute_nHom_parallel(sis, sis.t+ht)
 
         #complete the trapezoidal rule
         f_sol_n += 1/2 * nHom * ht
 
         #update fsol
         sis.set_fsol(f_sol_n)
+
+        sis.increase_t(ht)
 
         if cont%5 == 0:
             plt.plot(sis.U1, np.real(sis.Fsol[1, :, sis.Nu2//2, sis.Nv1//2, sis.Nv2//2]), label = "Re.")
@@ -79,12 +82,16 @@ def simulate(sist, ht, t_L):
             plt.ylabel("$F(0, 0, v_x, 0)$")
             plt.legend()
             plt.show()
+            
+            file_name = "fsol_{}_20_001.npy".format(round(sis.t, 3))
+            print("Written ", file_name)
+            np.save(file_name, sis.Fsol)
         
         cont +=1
-        sis.increase_t(ht)
+        
 
-        print(sist.t)
+        print(sis.t)
     
-    return sist
+    return sis
 
 

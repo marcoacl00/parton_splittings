@@ -7,7 +7,7 @@ import torch
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 @jit
-def Kin(f, sig, i1, i2, j1, j2, U1, U2, V1, V2, omega, beta_t, beta_t1):
+def Kin(f, sig, i1, i2, j1, j2, U1, U2, V1, V2, omega, beta_t, beta_t1, beta_t12):
 
     du1 = U1[1] - U1[0]
     du2 = U2[1] - U2[0]
@@ -24,8 +24,44 @@ def Kin(f, sig, i1, i2, j1, j2, U1, U2, V1, V2, omega, beta_t, beta_t1):
     deriv2_vx = (f[sig, i1, i2, j1+1, j2] - 2 * f[sig, i1, i2, j1, j2] + f[sig, i1, i2, j1-1, j2])/(dv1**2)
     deriv2_vy = (f[sig, i1, i2, j1, j2 + 1] - 2 * f[sig, i1, i2, j1, j2] + f[sig, i1, i2, j1, j2-1])/(dv2**2)
 
-    return -1/(2 * omega) * (deriv2_ux + deriv2_uy + 4j * (beta_t + beta_t1)/2 * (U1[i1] * deriv_ux + U2[i2] * deriv_uy) + \
+    return -1/(2 * omega) * (deriv2_ux + deriv2_uy + 4j * (beta_t + 4*beta_t12 + beta_t1)/6 * (U1[i1] * deriv_ux + U2[i2] * deriv_uy) + \
                              - deriv2_vx - deriv2_vy ) 
+
+def Kin_chunks(f, sig, U1, U2, V1, V2, omega, beta_t, beta_t1, cs_u1 = 16, cs_u2 = 16, cs_v1 = 16, cs_v2 = 16):
+
+    du1 = U1[1] - U1[0]
+    du2 = U2[1] - U2[0]
+
+    dv1 = V1[1] - V1[0]
+    dv2 = V2[1] - V2[0]
+
+    kin_f = np.zeros_like(f[sig])
+
+    for su1 in range(1, len(U1)-1, cs_u1):
+        for su2 in range(1, len(U2)-1, cs_u2):
+            for sv1 in range(1, len(V1)-1, cs_v1):
+                for sv2 in range(1, len(V2)-1, cs_v2):
+
+                    eu1 = min(su1 + cs_u1, len(U1)-1)
+                    eu2 = min(su2 + cs_u2, len(U2)-1)
+
+                    ev1 = min(sv1 + cs_v1, len(V1)-1)
+                    ev2 = min(sv1 + cs_v2, len(V2)-1)
+            
+                    kin_f[su1:eu1, su2:eu2, sv1:ev1, sv2:ev2] = (f[sig, su1 + 1:eu1+1, su2:eu2, sv1:ev1, sv2:ev2]  -2 * f[sig, su1:eu1, su2:eu2, sv1:ev1, sv2:ev2] + f[sig, su1 - 1:eu1-1, su2:eu2, sv1:ev1, sv2:ev2]) / du1**2
+
+                    kin_f[su1:eu1, su2:eu2, sv1:ev1, sv2:ev2] += (f[sig, su1:eu1, su2+1:eu2+1, sv1:ev1, sv2:ev2]  -2 * f[sig, su1:eu1,su2:eu2, sv1:ev1, sv2:ev2] + f[sig, su1:eu1, su2-1:eu2-1, sv1:ev1, sv2:ev2]) / du2**2
+
+                    kin_f[su1:eu1, su2:eu2, sv1:ev1, sv2:ev2] += -(f[sig, su1:eu1, su2:eu2, sv1+1:ev1+1, sv2:ev2]  -2 * f[sig, su1:eu1,su2:eu2, sv1:ev1, sv2:ev2] + f[sig, su1:eu1, su2:eu2, sv1-1:ev1-1, sv2:ev2]) / dv1**2
+
+                    kin_f[su1:eu1, su2:eu2, sv1:ev1, sv2:ev2] += -(f[sig, su1:eu1, su2:eu2, sv1:ev1, sv2+1:ev2+1]  -2 * f[sig, su1:eu1,su2:eu2, sv1:ev1, sv2:ev2] + f[sig, su1:eu1, su2:eu2, sv1:ev1, sv2-1:ev2-1]) / dv2**2
+
+                    kin_f[su1:eu1, su2:eu2, sv1:ev1, sv2:ev2] += 4j * (beta_t + beta_t1)/2 * (U1[su1:eu1] * (f[sig, su1+1:eu1+1, su2:eu2, sv1:ev1, sv2:ev2] - f[sig, su1-1:eu1-1, su2:eu2, sv1-1:ev1-1, sv2:ev2]) / (2*du1) + U2[su2:eu2] * (f[sig, su1:eu1, su2+1:eu2+1, sv1:ev1, sv2:ev2] - f[sig, su1:eu1, su2+1:eu2+1, sv1:ev1, sv2:ev2]) / (2*du2))
+
+                    kin_f *= -1/(2 *omega)
+
+
+    return kin_f
 
 
 @jit
@@ -49,16 +85,16 @@ def V_LargeNc(sig1, sig2, z, qF, U1, U2, V1, V2, i1, i2, j1, j2):
     return -qF / (4.0) * element  
 
 @jit
-def eff_pot_gamqq(VLNc, i1, i2, U1, U2, omega, beta_t, debeta_t, beta_t1, debta_t1):
+def eff_pot_gamqq(VLNc, i1, i2, U1, U2, omega, beta_t, debeta_t, beta_t1, debta_t1, beta_t12, debta_t12):
 
-    ret_val = 1j * VLNc + (debeta_t + debta_t1)/2 * (U1[i1]**2 + U2[i2]**2)
+    ret_val = 1j * VLNc + (debeta_t + 4 * debta_t12 + debta_t1)/6 * (U1[i1]**2 + U2[i2]**2)
     
-    ret_val -= 1/(2 * omega) * (4j * (beta_t + beta_t1)/2 - 4 * (beta_t**2 + beta_t1**2)/2 * (U1[i1]**2 + U2[i2]**2))
+    ret_val -= 1/(2 * omega) * (4j * (beta_t + beta_t1)/2 - 4 * (beta_t**2 + + 4 * beta_t12**2 + beta_t1**2)/6 * (U1[i1]**2 + U2[i2]**2))
 
     return ret_val
 
 @jit(nopython = True, parallel = True)
-def apply_hamil(f, z, qF, U1, U2, V1, V2, beta_t, dbeta_t, beta_t1, debta_t1, omega):
+def apply_hamil(f, z, qF, U1, U2, V1, V2, beta_t, dbeta_t, beta_t1, debta_t1, beta_t12, debta_t12, omega):
     g = .0 * f + 0j
     Nu1 = len(U1)
     Nu2 = len(U2)
@@ -72,8 +108,8 @@ def apply_hamil(f, z, qF, U1, U2, V1, V2, beta_t, dbeta_t, beta_t1, debta_t1, om
                     for j2 in range(1, Nv2-1):
 
                         VLNc = V_LargeNc(sigp, sigp, z, qF, U1, U2, V1, V2, i1, i2, j1, j2)
-                        K = Kin(f, sigp, i1, i2, j1, j2, U1, U2, V1, V2, omega, beta_t, beta_t1)
-                        V = eff_pot_gamqq(VLNc, i1, i2, U1, U2, omega, beta_t, dbeta_t, beta_t1, debta_t1)
+                        K = Kin(f, sigp, i1, i2, j1, j2, U1, U2, V1, V2, omega, beta_t, beta_t1, beta_t12)
+                        V = eff_pot_gamqq(VLNc, i1, i2, U1, U2, omega, beta_t, dbeta_t, beta_t1, debta_t1, beta_t12, debta_t12)
 
                         g[sigp, i1, i2, j1, j2] = K + V * f[sigp, i1, i2, j1, j2]
 
@@ -88,7 +124,6 @@ def compute_fourier(f, beta, U1, U2, V1, V2, px, py):
         dv2 = V2[1] - V2[0]
         dVol = du1 * du2 * dv1 * dv2
         for i1 in range(1, len(U1)-1):
-            print("Processing i_1 = ", i1)
             for i2 in range(1, len(U2)-1):
                 for j1 in range(1, len(V1)-1):
                     for j2 in range(1, len(V2)-1):

@@ -9,7 +9,7 @@ def faber_params(qF, du1, du2, dv1, dv2, beta_t, dbeta_t, omega, L):
     lam_re_min = -2 * (1/dv1**2 + 1/dv2**2 + (2/ (2*du1) + 2 / (2*du1)) * L * beta_t)/ omega  
 
     lam_im_max = 0
-    lam_im_min = -2*qF - 2*beta_t/omega
+    lam_im_min = -2*qF - L**2*beta_t/omega
 
     c = (lam_re_max - lam_re_min)/2
     l = (lam_im_max - lam_im_min)/2
@@ -26,20 +26,21 @@ def faber_params(qF, du1, du2, dv1, dv2, beta_t, dbeta_t, omega, L):
 
 
 def coeff(m, dt1, gamma_0, gamma_1, lambF):
+
     exp_arg = 2 * lambF * dt1*np.sqrt(gamma_1+0j)
     return (-1j/np.sqrt(gamma_1+0j))**m * np.exp(-1j * lambF * dt1 * gamma_0) * special.jv(m, exp_arg) #* np.exp(np.imag(exp_arg))
    
     
 @jit
-def faber_exp(f, gamma_0, gamma_1, coeff_arr, lambda_F, z, qF, U1, U2, V1, V2, beta_t, dbeta_t, beta_t1, debta_t1,omega):
+def faber_exp(f, gamma_0, gamma_1, coeff_arr, lambda_F, z, qF, U1, U2, V1, V2, beta_t, dbeta_t, beta_t1, debta_t1, beta_t12, debta_t12, omega):
         """Computes e^(-iHdt)f using the Faber expansion. 
         Takes a 4D vector F, the number of polynomials Np and the potential field V"""
         fH_0 = f
 
-        fH_1 = apply_hamil(fH_0, z, qF, U1, U2, V1, V2, beta_t, dbeta_t, beta_t1, debta_t1, omega) / lambda_F
+        fH_1 = apply_hamil(fH_0, z, qF, U1, U2, V1, V2, beta_t, dbeta_t, beta_t1, debta_t1, beta_t12, debta_t12, omega) / lambda_F
         fH_1 -= gamma_0 * fH_0
 
-        fH_2 = apply_hamil(fH_1, z, qF, U1, U2, V1, V2, beta_t, dbeta_t, beta_t1, debta_t1,omega)  / lambda_F
+        fH_2 = apply_hamil(fH_1, z, qF, U1, U2, V1, V2, beta_t, dbeta_t, beta_t1, debta_t1, beta_t12, debta_t12, omega)  / lambda_F
         fH_2 += -gamma_0 * fH_1 - 2 * gamma_1*fH_0
 
         Uf_est = coeff_arr[0] * fH_0 + coeff_arr[1] * fH_1 + coeff_arr[2] * fH_2
@@ -48,7 +49,7 @@ def faber_exp(f, gamma_0, gamma_1, coeff_arr, lambda_F, z, qF, U1, U2, V1, V2, b
             fH_0 = fH_1
             fH_1 = fH_2
 
-            fH_2 = apply_hamil(fH_1, z, qF, U1, U2, V1, V2, beta_t, dbeta_t, beta_t1, debta_t1, omega)  / lambda_F
+            fH_2 = apply_hamil(fH_1, z, qF, U1, U2, V1, V2, beta_t, dbeta_t, beta_t1, debta_t1, beta_t12, debta_t12, omega)  / lambda_F
 
             fH_2 += -gamma_0 * fH_1 - gamma_1*fH_0
 
@@ -83,11 +84,13 @@ def faber_expand(sis, ht):
     coeff_array = [coeff(0, ht, gamma0, gamma1, lambF)]
 
     m = 1
-    while np.abs(coeff_array[-1]) > 1e-5 or m < 6:
+    while (np.abs(coeff_array[-1]) > 1e-5 or m < 6):
         coeff_array.append(coeff(m, ht, gamma0, gamma1, lambF))
         m+=1
+
+    print("Number of faber coefficients = ", len(coeff_array))
     
     return faber_exp(sis.Fsol, gamma0, gamma1, coeff_array, lambF, 
               sis.z, sis.qhat, sis.U1, sis.U2, sis.V1, sis.V2, 
-              sis.beta(sis.t), sis.dbeta(sis.t), sis.beta(sis.t + ht), sis.dbeta(sis.t + ht), sis.omega)
+              sis.beta(sis.t), sis.dbeta(sis.t), sis.beta(sis.t + ht), sis.dbeta(sis.t + ht), sis.beta(sis.t + ht/2), sis.dbeta(sis.t + ht/2), sis.omega)
     
