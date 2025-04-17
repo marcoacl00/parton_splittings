@@ -31,11 +31,5 @@ class simple_fitter(nn.Module):
         
         return self.layers(x)
 
-#Set fitter
-#fit = simple_fitter().to(device)
-
-#Define NN criteria and optmizer
-#criterion = nn.MSELoss()
-#optimizer = optim.Adam(fit.parameters(), lr=0.01, weight_decay=1e-6)  
 
 

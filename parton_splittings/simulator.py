@@ -69,21 +69,28 @@ def simulate(sist, ht, t_L, step_save):
         sis.increase_t(ht)
 
         if cont%step_save == 0:
-            plt.plot(sis.U1, np.real(sis.Fsol[1, :, sis.Nu2//2, sis.Nv1//2, sis.Nv2//2]), label = "Re.")
-            plt.plot(sis.U1, np.imag(sis.Fsol[1, :, sis.Nu2//2, sis.Nv1//2, sis.Nv2//2]), label = "Im.")
+            plt.plot(sis.U1, np.real(sis.Fsol[1, :, sis.Nu2//2, sis.Nv1//2, sis.Nv2//2]), 
+                     label = "Re.")
+            plt.plot(sis.U1, np.imag(sis.Fsol[1, :, sis.Nu2//2, sis.Nv1//2, sis.Nv2//2]), 
+                     label = "Im.")
             plt.xlabel("$u_x$")
             plt.ylabel("$F(u_x, 0, 0, 0)$")
             plt.legend()
             plt.show()
 
-            plt.plot(sis.V1, np.real(sis.Fsol[1,  sis.Nu1//2,  sis.Nu2//2, :, sis.Nv2//2 ]), label = "Real.")
-            plt.plot(sis.V1, np.imag(sis.Fsol[1, sis.Nu1//2,  sis.Nu2//2, :,  sis.Nv2//2 ]), label = "Imag.")
+            plt.plot(sis.V1, np.real(sis.Fsol[1,  sis.Nu1//2,  sis.Nu2//2, :, sis.Nv2//2 ]), 
+                     label = "Real.")
+            plt.plot(sis.V1, np.imag(sis.Fsol[1, sis.Nu1//2,  sis.Nu2//2, :,  sis.Nv2//2 ]), 
+                     label = "Imag.")
             plt.xlabel("$u_x$")
             plt.ylabel("$F(0, 0, v_x, 0)$")
             plt.legend()
             plt.show()
             
-            file_name = "fsol_t={}_E={}GeV_q={}_z={}.npy".format(round(sis.t, 3), round(sis.E/sis.fm, 1), round(sis.qhat/sis.fm**2,1), round(sis.z, 2))
+            file_name = "fsol_t={}_E={}GeV_q={}_z={}.npy".format(round(sis.t, 3), 
+                                                                 round(sis.E/sis.fm, 1), 
+                                                                 round(sis.qhat/sis.fm**2,1), 
+                                                                 round(sis.z, 2))
             print("Written ", file_name)
             np.save("saved_files/" + file_name, sis.Fsol)
         

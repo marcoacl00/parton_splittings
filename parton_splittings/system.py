@@ -78,7 +78,9 @@ class phsys:
                 raise TypeError("Other vertices not yet available")
             
     def F_in_out(self, theta):
-        Finout = np.real(-2 * (1 - np.exp(-1j * np.tan(self.Omega * self.t) / (2* self.omega * self.Omega)* self.omega **2 * theta**2)))
+        Finout = np.real(-2 * (1 - np.exp(-1j * np.tan(self.Omega * self.t) / 
+                                          (2* self.omega * self.Omega)* 
+                                          self.omega **2 * theta**2)))
         
         return Finout
     
@@ -163,11 +165,17 @@ class phsys:
 
         constant = 1j * self.omega / np.pi
         damp = np.exp(-self.eps(t) * (self.U1[i1]*self.U1[i1] + self.U2[i2]*self.U2[i2]))
-
+        ux = self.U1[i1]
+        uy = self.U2[i2]
+        deltav1 = self.dirac_v1(j1)
+        ddeltav1 = self.ddirac_v1(j1)
+        deltav2 = self.dirac_v2(j1)
+        ddeltav2 = self.ddirac_v2(j1)
  
-        #non_hom_term = constant * damp * (self.U1[i1] * self.ddirac_gaussian(self.V1[j1]) * self.dirac_gaussian(self.V2[j2]) + self.U2[i2] * self.dirac_gaussian(self.V2[j2]) * self.dirac_gaussian(self.V1[j1]) ) / (self.U1[i1]**2 + self.U2[i2]**2)
 
-        non_hom_term = constant * damp * (self.U1[i1] *  self.ddirac_v1(j1) *  self.dirac_v1(j2) + self.U2[i2] * self.ddirac_v2(j2) * self.dirac_v1(j1) ) / (self.U1[i1]**2 + self.U2[i2]**2)
+
+        non_hom_term = constant * damp * (ux * ddeltav1 *  deltav2 + 
+                                          uy * deltav1 * ddeltav2 ) / (ux**2 + uy**2)
 
         return non_hom_term
 
