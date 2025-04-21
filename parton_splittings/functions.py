@@ -6,7 +6,6 @@ from scipy.integrate import quad
 import torch
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-@jit
 def Kin(f, sig, i1, i2, j1, j2, U1, U2, V1, V2, omega, beta_t, beta_t1, beta_t12):
 
     du1 = U1[1] - U1[0]
@@ -44,7 +43,6 @@ def Kin(f, sig, i1, i2, j1, j2, U1, U2, V1, V2, omega, beta_t, beta_t1, beta_t12
     beta_eff = (beta_t + 4*beta_t12 + beta_t1)/6
 
     return -1/(2 * omega) * (deriv2_u + 4j * beta_eff * dir_deriv - deriv2_v) 
-
 
 
 @jit
