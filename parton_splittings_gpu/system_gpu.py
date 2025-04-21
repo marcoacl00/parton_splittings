@@ -1,15 +1,19 @@
-import numpy as np #for cpu
+import numpy as np 
 import cupy as cp #for gpu
 
-prec = np.float32
-prec_c = np.complex64
 
 class phsys:
     """This class contains all parameters and methods 
     exclusive to the chosen configuration 
-    (E[GeV], z, qF[GeV^2/fm], L[grid_size fm])"""
+    (E[GeV], z, qF[GeV^2/fm], L[grid_size fm]). \n
+    Extra params: NcMode (Large Fac/Finite), 
+    vertex (currently only "gamma_qq"),
+    parallel : none (no parallelization), "cpu", and "gpu." 
+    """
     
-    def __init__(self, E, z, qF, L, Ncmode = "LNcFac", vertex = "gamma_qq", parallel = "gpu"):
+    def __init__(self, E, z, qF, L, Ncmode = "LNcFac", vertex = "gamma_qq", parallel = "gpu", prec = np.float32):
+        self.prec = prec
+        self.prec_c = np.result_type(1j * prec(1))
         fm = prec(5.067)
         self.fm = fm
         self.E = prec(E * fm)
@@ -20,6 +24,8 @@ class phsys:
         self.Ncmode = Ncmode
         self.vertex = vertex
         self.L = prec(L)
+        self.parallel = parallel
+
         self.t = 0.005 #initial time
         self.Nu1 = None
         self.Nu2 = None
@@ -34,7 +40,7 @@ class phsys:
         self.dv1 = None
         self.dv2 = None
         self.Fsol = None
-        self.parallel = parallel
+        
 
         if vertex == "gamma_qq":
             self.Nsig = 2
@@ -48,17 +54,17 @@ class phsys:
 
         if self.parallel == "gpu":
             #keep grid on GPU already
-            self.U1 = cp.linspace(-self.L/2, self.L/2, Nu1, dtype=prec)
-            self.U2 = cp.linspace(-self.L/2, self.L/2, Nu2, dtype=prec)
-            self.V1 = cp.linspace(-self.L/2, self.L/2, Nv1, dtype=prec)
-            self.V2 = cp.linspace(-self.L/2, self.L/2, Nv2, dtype=prec)
+            self.U1 = cp.linspace(-self.L/2, self.L/2, Nu1, dtype=self.prec)
+            self.U2 = cp.linspace(-self.L/2, self.L/2, Nu2, dtype=self.prec)
+            self.V1 = cp.linspace(-self.L/2, self.L/2, Nv1, dtype=self.prec)
+            self.V2 = cp.linspace(-self.L/2, self.L/2, Nv2, dtype=self.prec)
 
         else:
 
-            self.U1 = np.linspace(-self.L/2, self.L/2, Nu1, dtype=prec)
-            self.U2 = np.linspace(-self.L/2, self.L/2, Nu2, dtype=prec)
-            self.V1 = np.linspace(-self.L/2, self.L/2, Nv1, dtype=prec)
-            self.V2 = np.linspace(-self.L/2, self.L/2, Nv2, dtype=prec)
+            self.U1 = np.linspace(-self.L/2, self.L/2, Nu1, dtype=self.prec)
+            self.U2 = np.linspace(-self.L/2, self.L/2, Nu2, dtype=self.prec)
+            self.V1 = np.linspace(-self.L/2, self.L/2, Nv1, dtype=self.prec)
+            self.V2 = np.linspace(-self.L/2, self.L/2, Nv2, dtype=self.prec)
 
         self.du1 = self.U1[1] - self.U1[0]
         self.du2 = self.U2[1] - self.U2[0]
@@ -71,13 +77,13 @@ class phsys:
 
     def beta(self, t):
         """The frequency of spatial oscilations"""
-        co = self.omega * self.Omega / 2 * 1 / np.tan(self.Omega * t) #already precision complex64
+        co = self.omega * self.Omega * 0.5 * 1 / np.tan(self.Omega * t) #already precision complex64
         return np.real(co)
     
     
     def eps(self, t):
         """Damp factor on the source term"""
-        co = self.omega * self.Omega / 2 * 1 / np.tan(self.Omega * t)
+        co = self.omega * self.Omega * 0.5 * 1 / np.tan(self.Omega * t)
         return np.imag(co) 
 
     def dbeta(self, t):
@@ -94,16 +100,17 @@ class phsys:
         else:
             if self.vertex == "gamma_qq":
                 if self.parallel == "gpu":
-                    self.Fsol = cp.zeros(shape=(2, self.Nu1, self.Nu2, self.Nv1, self.Nv2), dtype=prec_c)
+                    self.Fsol = cp.zeros(shape=(2, self.Nu1, self.Nu2, self.Nv1, self.Nv2), dtype=self.prec_c)
                 else:
-                    self.Fsol = np.zeros(shape=(2, self.Nu1, self.Nu2, self.Nv1, self.Nv2), dtype=prec_c)
+                    self.Fsol = np.zeros(shape=(2, self.Nu1, self.Nu2, self.Nv1, self.Nv2), dtype=self.prec_c)
             else: 
                 raise TypeError("Other vertices not yet available")
             
     def F_in_out(self, theta):
+        
         Finout = np.real(-2 * (1 - np.exp(-1j * np.tan(self.Omega * self.t) / 
                                           (2* self.omega * self.Omega)* 
-                                          self.omega **2 * theta**2)))
+                                          self.omega**2 * theta**2)))
         
         return Finout
     
@@ -284,19 +291,19 @@ class phsys:
             g_z = z*(1-z)
 
             prefac = Nc/(CF)
-            element = prefac * (u1_minus_v1_sqrd + u2_minus_v2_sqrd)
+            element = g_z * (u1_minus_v1_sqrd + u2_minus_v2_sqrd)
         
         elif sig1 == 1 and sig2 == 1:
             u1_minus_v1_sqrd = (u1 - v1)**2
             u2_minus_v2_sqrd = (u2 - v2)**2
             z = self.z
             prefac = CF - Nc*z*(1-z)
-            element = g_z * (u1_minus_v1_sqrd + u2_minus_v2_sqrd)
+            element = prefac * (u1_minus_v1_sqrd + u2_minus_v2_sqrd)
             
         else:
             raise ValueError("Error on potential")
 
-        return -self.qhat / (4.0) * element 
+        return -0.25 * self.qhat * element 
     
 
     
