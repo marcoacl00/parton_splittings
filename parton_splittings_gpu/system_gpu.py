@@ -8,7 +8,8 @@ class phsys:
     (E[GeV], z, qF[GeV^2/fm], L[grid_size fm]). \n
     Extra params: NcMode (Large Fac/Finite), 
     vertex (currently only "gamma_qq"),
-    parallel : none (no parallelization), "cpu", and "gpu." 
+    parallel : none (no parallelization), "cpu/simd", and "gpu" 
+    prec: precision type (default float32, better for gpu)
     """
     
     def __init__(self, E, z, qF, L, Ncmode = "LNcFac", vertex = "gamma_qq", parallel = "gpu", prec = np.float32):
@@ -26,7 +27,7 @@ class phsys:
         self.L = prec(L)
         self.parallel = parallel
 
-        self.t = 0.005 #initial time
+        self.t = 0.05 #initial time
         self.Nu1 = None
         self.Nu2 = None
         self.Nv1 = None
@@ -107,7 +108,7 @@ class phsys:
                 raise TypeError("Other vertices not yet available")
             
     def F_in_out(self, theta):
-        
+
         Finout = np.real(-2 * (1 - np.exp(-1j * np.tan(self.Omega * self.t) / 
                                           (2* self.omega * self.Omega)* 
                                           self.omega**2 * theta**2)))
@@ -117,8 +118,8 @@ class phsys:
     def set_fsol(self, arr):
         self.Fsol = arr
 
-    def increase_t(self, t):
-        self.t += t
+    def increase_t(self, dt):
+        self.t += dt
     
     def set_t(self, t):
         self.t = t
@@ -169,8 +170,8 @@ class phsys:
         uy = self.U2[i2]
         deltav1 = self.dirac_v1(j1)
         ddeltav1 = self.ddirac_v1(j1)
-        deltav2 = self.dirac_v2(j1)
-        ddeltav2 = self.ddirac_v2(j1)
+        deltav2 = self.dirac_v2(j2)
+        ddeltav2 = self.ddirac_v2(j2)
  
 
         non_hom_term = constant * damp * (ux * ddeltav1 *  deltav2 + 
@@ -178,51 +179,43 @@ class phsys:
 
         return non_hom_term
     
-    def Kin(self, sig, i1, i2, j1, j2, dt):
+    def source_term_gpu(self, t):
+
+        constant = 1j * self.omega / np.pi
+        ux = self.U1[1:-1, None, None, None]
+        uy = self.U2[None, 1:-1, None, None]
+
+        damp = np.exp(-self.eps(t) * (ux**2 + uy**2))
+
+        one_u2 = 1 / (ux**2 + uy**2)
         
-        f = self.Fsol
-        du1 = self.du1
-        du2 = self.du2
-        dv1 = self.dv1
-        dv2 = self.dv2
-        u1 = self.U1[i1]
-        u2 = self.U2[i2]
+        origin_v1 = self.Nv1//2
+        origin_v2 = self.Nv2//2
 
-        beta_t = self.beta(self.t)
-        beta_t12 = self.beta(self.t + dt/2)
-        beta_t1 = self.beta(self.t + dt)
+        deltav1 = .0 * self.V1
+        deltav2 = .0 * self.V2
+        ddeltav1 = .0 * self.V1
+        ddeltav2 = .0 * self.V2
 
-        omega = self.omega
+        deltav1[origin_v1] =  self.dirac_v1(origin_v1)
+        deltav1[origin_v1-1] =  self.dirac_v1(origin_v1-1)
+        ddeltav1[origin_v1] =  self.ddirac_v1(origin_v1)
+        ddeltav1[origin_v1-1] =  self.ddirac_v1(origin_v1-1)
 
-        #a bunch of array extractions to compute the derivative
-        f_ = f[sig, i1, i2, j1, j2]
-        f_uxplus1 = f[sig, i1+1, i2, j1, j2]
-        f_uxminus1 = f[sig, i1-1, i2, j1, j2]
-        f_uyplus1 = f[sig, i1, i2+1, j1, j2]
-        f_uyminus1 = f[sig, i1, i2-1, j1, j2]
-        f_vxplus1 = f[sig, i1, i2, j1+1, j2]
-        f_vxminus1 = f[sig, i1, i2, j1-1, j2]
-        f_vyplus1 = f[sig, i1, i2, j1, j2+1]
-        f_vyminus1 = f[sig, i1, i2, j1, j2-1]
+        deltav2[origin_v2] =  self.dirac_v2(origin_v2)
+        deltav2[origin_v2-1] =  self.dirac_v2(origin_v2-1)
+        ddeltav2[origin_v2] =  self.ddirac_v2(origin_v2)
+        ddeltav2[origin_v2-1] =  self.ddirac_v2(origin_v2-1)
 
-        #finite difference approx for derivatives
-        deriv_ux = (f_uxplus1 - f_uxminus1)/(2*du1)
-        deriv_uy = (f_uyplus1 - f_uyminus1)/(2*du2)
+        delta_term = (ux * ddeltav1[None, None, 1:-1, None] *  deltav2[None, None, None, 1:-1] + 
+                      uy * ddeltav2[None, None, None, 1:-1] * deltav1[None, None, 1:-1, None]) 
+ 
 
-        deriv2_ux = (f_uxplus1 - 2 * f_ + f_uxminus1)/(du1**2)
-        deriv2_uy = (f_uyplus1 - 2 * f_ + f_uyplus1)/(du2**2)
+        non_hom_term = constant * damp * delta_term * one_u2
 
-        deriv2_vx = (f_vxplus1 - 2 * f_ + f_vxminus1)/(dv1**2)
-        deriv2_vy = (f_vyplus1 - 2 * f_ + f_vyminus1)/(dv2**2)
+        return non_hom_term
 
-        deriv2_u = deriv2_ux + deriv2_uy
-        deriv2_v = deriv2_vx + deriv2_vy
 
-        dir_deriv = u1 * deriv_ux + u2 * deriv_uy
-
-        beta_eff = (beta_t + 4*beta_t12 + beta_t1)/6
-
-        return -1/(2 * omega) * (deriv2_u + 4j * beta_eff * dir_deriv - deriv2_v) 
     
     
     def V_LargeNc_gamma_qq(self, sig1, sig2, i1, i2, j1, j2):
@@ -231,6 +224,40 @@ class phsys:
         u2 = self.U2[i2]
         v1 = self.V1[j1]
         v2 = self.V2[j2]
+
+        if sig1 == 0 and sig2 == 0:
+        
+            u_sqrd = u1**2 + u2**2
+            v_sqrd =  v1**2 + v2**2
+
+            element = u_sqrd + v_sqrd
+
+        elif (sig1 == 0 and sig2 == 1) or (sig1 == 1 and sig2 == 0):
+
+            element = 0
+        
+        elif sig1 == 1 and sig2 == 1:
+            u1_minus_v1_sqrd = (u1 - v1)**2
+            u2_minus_v2_sqrd = (u2 - v2)**2
+            z = self.z
+            g_z = z**2 + (1-z)**2
+
+            element = g_z * (u1_minus_v1_sqrd + u2_minus_v2_sqrd)
+            
+        else:
+            element = 0
+            print("ERROR ON POTENTIAL")
+
+    
+        return -self.qhat / (4.0) * element 
+    
+
+    def V_LargeNc_gamma_qq_par(self, sig1, sig2):
+        """The potential matrix for gamma -> qqbar in the large Nc factorized (diag) limit"""
+        u1 = self.U1[:, None, None, None]
+        u2 = self.U2[None, :, None, None]
+        v1 = self.V1[None, None, :, None]
+        v2 = self.V2[None, None, None, :]
 
         if sig1 == 0 and sig2 == 0:
         
