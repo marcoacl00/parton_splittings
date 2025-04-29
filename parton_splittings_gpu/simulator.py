@@ -29,7 +29,7 @@ def simulate(sist, ht, t_L, step_save = 5):
     while sis.t < t_L:
 
         if sis.t < 0.1:
-            ht = 1e-1 * ht_cp
+            ht = 5e-1 * ht_cp
         else: 
             ht = ht_cp
 
