@@ -86,13 +86,11 @@ def faber_expand(sys, ht):
     print("Number of polynomials = ", m)
     fH_0 = 1.0 * sys.Fsol
 
-    fH_1 = apply_hamil(sys, ht) * one_lamb
+    fH_1 = apply_hamil(sys, fH_0, ht) * one_lamb
     fH_1 -= gamma0 * fH_0
-    sys.set_fsol(fH_1)
 
-    fH_2 = apply_hamil(sys, ht) * one_lamb
+    fH_2 = apply_hamil(sys, fH_1, ht) * one_lamb
     fH_2 += -gamma0 * fH_1 - 2 * gamma1*fH_0
-    sys.set_fsol(fH_2)
 
     Uf_est = coeff_array[0] * fH_0 + coeff_array[1] * fH_1 + coeff_array[2] * fH_2
 
@@ -100,8 +98,7 @@ def faber_expand(sys, ht):
 
         fH_0 = fH_1
         fH_1 = fH_2
-        sys.set_fsol(fH_1)
-        fH_2 = apply_hamil(sys, ht) * one_lamb
+        fH_2 = apply_hamil(sys, fH_1, ht) * one_lamb
 
         fH_2 += -gamma0 * fH_1 - gamma1*fH_0
 

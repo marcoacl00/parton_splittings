@@ -89,7 +89,7 @@ class phsys:
 
     def dbeta(self, t):
         """Derivative of the frequency of spatial oscilations"""
-        det = 1e-12
+        det = 1e-6
         return (self.beta(t+det) - self.beta(t))/det 
     
 

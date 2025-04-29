@@ -32,7 +32,7 @@ def Kin(sys, sig, i1, i2, j1, j2, dt):
     deriv_uy = (f_uyplus1 - f_uyminus1)/(2*du2)
 
     deriv2_ux = (f_uxplus1 - 2 * f_ + f_uxminus1)/(du1**2)
-    deriv2_uy = (f_uyplus1 - 2 * f_ + f_uyplus1)/(du2**2)
+    deriv2_uy = (f_uyplus1 - 2 * f_ + f_uyminus1)/(du2**2)
 
     deriv2_vx = (f_vxplus1 - 2 * f_ + f_vxminus1)/(dv1**2)
     deriv2_vy = (f_vyplus1 - 2 * f_ + f_vyminus1)/(dv2**2)
@@ -47,10 +47,9 @@ def Kin(sys, sig, i1, i2, j1, j2, dt):
     return -1/(2 * omega) * (deriv2_u + 4j * beta_eff * dir_deriv - deriv2_v) 
 
     
-def Kin_par(sys, sig, dt):
+def Kin_par(sys, f, sig, dt):
     """!! This will return something with a reduced dimension
         Must be taken into account when computing H.f"""
-    f = sys.Fsol
     du1 = sys.du1
     du2 = sys.du2
     dv1 = sys.dv1
@@ -80,7 +79,7 @@ def Kin_par(sys, sig, dt):
     deriv_uy = (f_uyplus1 - f_uyminus1)/(2*du2)
 
     deriv2_ux = (f_uxplus1 - 2 * f_ + f_uxminus1)/(du1**2)
-    deriv2_uy = (f_uyplus1 - 2 * f_ + f_uyplus1)/(du2**2)
+    deriv2_uy = (f_uyplus1 - 2 * f_ + f_uyminus1)/(du2**2)
 
     deriv2_vx = (f_vxplus1 - 2 * f_ + f_vxminus1)/(dv1**2)
     deriv2_vy = (f_vyplus1 - 2 * f_ + f_vyminus1)/(dv2**2)
@@ -110,14 +109,15 @@ def V_eff_gamma_qq_LNc(sys, sig, sigp, i1, i2, j1, j2, dt):
         debeta_t1 = sys.dbeta(sys.t + dt)
 
         beta_eff = (beta_t + 4 * beta_t12 + beta_t1)/6
+        beta2_eff = (beta_t**2 + 4 * beta_t12**2 + beta_t1**2)/6
         dbeta_eff = (debeta_t + 4 * debeta_t12 + debeta_t1)/6
 
         u_sqrd = sys.U1[i1]**2 + sys.U2[i2]**2
 
         V_ = sys.V_LargeNc_gamma_qq(sig, sigp, i1, i2, j1, j2)
 
-        ret_val = 1j * V_ +  beta_eff * u_sqrd
-        ret_val -= 1/(2 * sys.omega) * (4j * beta_eff - 4 * dbeta_eff * u_sqrd)
+        ret_val = 1j * V_ +  dbeta_eff * u_sqrd
+        ret_val -= 1/(2 * sys.omega) * (4j * beta_eff - 4 * beta2_eff * u_sqrd)
 
     else: 
         V_ = sys.V_LargeNc_gamma_qq(sig, sigp, i1, i2, j1, j2)
@@ -143,14 +143,15 @@ def V_eff_gamma_qq_LNc_par(sys, sig, sigp, dt):
         one_six = 1/6
 
         beta_eff = (beta_t + 4 * beta_t12 + beta_t1) * one_six
+        beta2_eff = (beta_t**2 + 4 * beta_t12**2 + beta_t1**2) * one_six
         dbeta_eff = (debeta_t + 4 * debeta_t12 + debeta_t1) * one_six
 
-        u_sqrd = sys.U1[:, None, None, None]**2 + sys.U2[None, :, None, None]**2
+        u_sqrd = sys.U1[1:-1, None, None, None]**2 + sys.U2[None, 1:-1, None, None]**2
 
         V_ = sys.V_LargeNc_gamma_qq_par(sig, sigp)
 
-        ret_arr = 1j * V_ +  beta_eff * u_sqrd
-        ret_arr -= 0.5 / sys.omega * (4j * beta_eff - 4 * dbeta_eff * u_sqrd)
+        ret_arr = 1j * V_ +  dbeta_eff * u_sqrd
+        ret_arr -= 2 / sys.omega * (1j * beta_eff - beta2_eff * u_sqrd)
 
     else: 
 
@@ -161,26 +162,26 @@ def V_eff_gamma_qq_LNc_par(sys, sig, sigp, dt):
     return ret_arr
 
 
-def apply_hamil(sis, ht):
+def apply_hamil(sis, f, ht):
 
     if sis.vertex == "gamma_qq":
         if sis.Ncmode == "LNcFac":
 
-            Hf = np.zeros_like(sis.Fsol)
+            Hf = np.zeros_like(f)
 
-            Hf[0, 1:-1, 1:-1, 1:-1, 1:-1] = Kin_par(sis, 0, ht)
+            Hf[0, 1:-1, 1:-1, 1:-1, 1:-1] = Kin_par(sis, f, 0, ht)
 
             V_ss = V_eff_gamma_qq_LNc_par(sis, 0, 0, ht)
-            Hf[0] += V_ss * sis.Fsol[0]
+            Hf[0, 1:-1, 1:-1, 1:-1, 1:-1] += V_ss * f[0, 1:-1, 1:-1, 1:-1, 1:-1]
             V_ss = V_eff_gamma_qq_LNc_par(sis, 0, 1, ht)
-            Hf[0] += V_ss * sis.Fsol[1]
+            Hf[0, 1:-1, 1:-1, 1:-1, 1:-1] += V_ss * f[1, 1:-1, 1:-1, 1:-1, 1:-1]
 
-            Hf[1, 1:-1, 1:-1, 1:-1, 1:-1] = Kin_par(sis, 1, ht)
+            Hf[1, 1:-1, 1:-1, 1:-1, 1:-1] = Kin_par(sis, f, 1, ht)
 
             V_ss = V_eff_gamma_qq_LNc_par(sis, 1, 0, ht)
-            Hf[1] += V_ss * sis.Fsol[0]
+            Hf[1, 1:-1, 1:-1, 1:-1, 1:-1] += V_ss * f[0, 1:-1, 1:-1, 1:-1, 1:-1]
             V_ss = V_eff_gamma_qq_LNc_par(sis, 1, 1, ht)
-            Hf[1] += V_ss * sis.Fsol[1]
+            Hf[1, 1:-1, 1:-1, 1:-1, 1:-1] += V_ss * f[1, 1:-1, 1:-1, 1:-1, 1:-1]
 
             del V_ss
 
