@@ -27,7 +27,7 @@ class phsys:
         self.L = prec(L)
         self.parallel = parallel
 
-        self.t = 0.05 #initial time
+        self.t = 0.01 #initial time
         self.Nu1 = None
         self.Nu2 = None
         self.Nv1 = None
@@ -254,10 +254,10 @@ class phsys:
 
     def V_LargeNc_gamma_qq_par(self, sig1, sig2):
         """The potential matrix for gamma -> qqbar in the large Nc factorized (diag) limit"""
-        u1 = self.U1[:, None, None, None]
-        u2 = self.U2[None, :, None, None]
-        v1 = self.V1[None, None, :, None]
-        v2 = self.V2[None, None, None, :]
+        u1 = self.U1[1:-1, None, None, None]
+        u2 = self.U2[None, 1:-1, None, None]
+        v1 = self.V1[None, None, 1:-1, None]
+        v2 = self.V2[None, None, None, 1:-1]
 
         if sig1 == 0 and sig2 == 0:
         
