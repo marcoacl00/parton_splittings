@@ -1,0 +1,60 @@
+from parton_splittings_gpu import *
+from fourier import *
+import re
+import os 
+
+def main(dir, filename):
+
+    match_E = re.search(r"E=(-?\d+(\.\d+)?)", filename)
+    match_z = re.search(r"z=(-?\d+(\.\d+)?)", filename)
+    match_qhat =  re.search(r"qhat=(-?\d+(\.\d+)?)", filename)
+    match_Lu =  re.search(r"Lu=(-?\d+(\.\d+)?)", filename)
+    match_Lv =  re.search(r"Lv=(-?\d+(\.\d+)?)", filename)
+    match_Nu1 =  re.search(r"Nu1=(-?\d+(\.\d+)?)", filename)
+    match_Nu2 =  re.search(r"Nu2=(-?\d+(\.\d+)?)", filename)
+    match_Nv1 =  re.search(r"Nv1=(-?\d+(\.\d+)?)", filename)
+    match_Nv2 =  re.search(r"Nv2=(-?\d+(\.\d+)?)", filename)
+    match_L =  re.search(r"L=(-?\d+(\.\d+)?)", filename)
+
+    E = float(match_E.group(1))
+    z = float(match_z.group(1))
+    qhat = float(match_qhat.group(1))
+    Lu = float(match_Lu.group(1))
+    Lv = float(match_Lv.group(1))
+    Nu1 = int(match_Nu1.group(1))
+    Nu2 = int(match_Nu2.group(1))
+    Nv1 = int(match_Nv1.group(1))
+    Nv2 = int(match_Nv2.group(1))
+    L = float(match_L.group(1))
+
+    #import system parameters
+    sis = phsys(E, z, qhat, Lu, Lv) 
+    sis.set_dim(Nu1,Nu2,Nv1,Nv2)  
+    sis.set_t(L)
+
+    fsol = np.load(dir + filename)
+    fsol = cp.asarray(fsol)
+
+    Theta = np.arange(0.1, 0.9, 0.02)
+    Fp_an  = .0 * Theta
+    Fp_sim = .0 * Theta
+
+    for th in range(len(Theta)):
+
+        fp = np.real(fasit2Ncdiagint(sis.t, sis.omega*Theta[th], 0, sis.z, sis.omega, sis.Omega, sis.qhat))
+
+        Fp_prime = compute_fourier_torch_chunks(sis, fsol, sis.omega*Theta[th],
+                                    chunksize_U1 = 8, 
+                                    chunksize_U2 = 8).get()
+
+        Fp_an[th] = fp
+        Fp_sim[th] = Fp_prime
+
+        print("Theta = ",Theta[th])
+        print("Analytical = ", Theta[th]**2 / 2 * fp)
+        print("Simulation = ", Theta[th]**2 / 2 *Fp_prime)
+
+    dir = "fourier_results/"
+    np.save(dir + "ft_" + filename, np.array([Theta, Fp_an, Fp_sim]))
+
+main("simulations/", "E=50_z=0.5_qhat=1.5_Lu=6_Lv=2_Nu1=80_Nu2=80_Nv1=60_Nv2=60_L=2.npy")

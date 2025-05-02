@@ -1,10 +1,9 @@
 from .system_gpu import *
 from .hamiltonian import *
 
-import matplotlib.pyplot as plt
 
 from scipy import special
-
+from tqdm import tqdm
 
 
 def faber_params(sys):
@@ -17,24 +16,25 @@ def faber_params(sys):
     beta_t = sys.beta(sys.t)
     dbeta_t = sys.dbeta(sys.t)
 
-    L = sys.L
+    Lu = sys.Lu
+    Lv = sys.Lv
     omega = sys.omega
 
     lam_re_max_deriv = 2 * (1/du1**2 + 1/du2**2 + 
-                            (2 / (2*du1) + 2/ (2*du2)) * L * beta_t)/ omega #deriv contribution
+                            (2 / (2*du1) + 2/ (2*du2)) * Lu * beta_t)/ omega #deriv contribution
     
-    lam_re_max_extr = (2*beta_t**2 / omega  + dbeta_t) * L**2 #extra contribution from beta * u^2 terms
+    lam_re_max_extr = (2*beta_t**2 / omega  + dbeta_t) * Lu**2 #extra contribution from beta * u^2 terms
     lam_re_max =  lam_re_max_deriv + lam_re_max_extr
 
     #Minimum real eigenvalue
     lam_re_min = -2 * (1/dv1**2 + 1/dv2**2 + 
-                       (2/ (2*du1) + 2 / (2*du1)) * L * beta_t)/ omega  
+                       (2/ (2*du1) + 2 / (2*du1)) * Lv * beta_t)/ omega  
     
     #Maximum imag eigenvalue
-    lam_im_max = 4*qF + L**2*beta_t/omega
+    lam_im_max = 0
 
     #Minimum imag eigenvalue
-    lam_im_min = -qF - L**2*beta_t/omega
+    lam_im_min = -qF - Lu**2*beta_t/omega
 
     #Elipse params and scaling factor 
     c = (lam_re_max - lam_re_min)/2
@@ -80,7 +80,7 @@ def faber_expand(sys, ht):
     
     m = 1
     coeff_array = [coeff(0, ht, gamma0, gamma1, lambF)] #compute first coefficient
-    while (np.abs(coeff_array[-1]) > 1e-5 or m < 6):
+    while (np.abs(coeff_array[-1]) > 1e-7 or m < 6):
         coeff_array.append(coeff(m, ht, gamma0, gamma1, lambF))
         m += 1
     print("Number of polynomials = ", m)
@@ -94,7 +94,7 @@ def faber_expand(sys, ht):
 
     Uf_est = coeff_array[0] * fH_0 + coeff_array[1] * fH_1 + coeff_array[2] * fH_2
 
-    for k in range(3, len(coeff_array)):
+    for k in tqdm(range(3, len(coeff_array))):
 
         fH_0 = fH_1
         fH_1 = fH_2

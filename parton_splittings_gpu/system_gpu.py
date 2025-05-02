@@ -12,7 +12,7 @@ class phsys:
     prec: precision type (default float32, better for gpu)
     """
     
-    def __init__(self, E, z, qF, L, Ncmode = "LNcFac", vertex = "gamma_qq", parallel = "gpu", prec = np.float32):
+    def __init__(self, E, z, qF, Lu, Lv, Ncmode = "LNcFac", vertex = "gamma_qq", parallel = "gpu", prec = np.float32):
         self.prec = prec
         self.prec_c = np.result_type(1j * prec(1))
         fm = prec(5.067)
@@ -24,7 +24,8 @@ class phsys:
         self.Omega = (1 - 1j)/2 * prec(np.sqrt(self.qhat / self.omega))
         self.Ncmode = Ncmode
         self.vertex = vertex
-        self.L = prec(L)
+        self.Lu = prec(Lu)
+        self.Lv = prec(Lv)
         self.parallel = parallel
 
         self.t = 0.01 #initial time
@@ -55,17 +56,17 @@ class phsys:
 
         if self.parallel == "gpu":
             #keep grid on GPU already
-            self.U1 = cp.linspace(-self.L/2, self.L/2, Nu1, dtype=self.prec)
-            self.U2 = cp.linspace(-self.L/2, self.L/2, Nu2, dtype=self.prec)
-            self.V1 = cp.linspace(-self.L/2, self.L/2, Nv1, dtype=self.prec)
-            self.V2 = cp.linspace(-self.L/2, self.L/2, Nv2, dtype=self.prec)
+            self.U1 = cp.linspace(-self.Lu/2, self.Lu/2, Nu1, dtype=self.prec)
+            self.U2 = cp.linspace(-self.Lu/2, self.Lu/2, Nu2, dtype=self.prec)
+            self.V1 = cp.linspace(-self.Lv/2, self.Lv/2, Nv1, dtype=self.prec)
+            self.V2 = cp.linspace(-self.Lv/2, self.Lv/2, Nv2, dtype=self.prec)
 
         else:
 
-            self.U1 = np.linspace(-self.L/2, self.L/2, Nu1, dtype=self.prec)
-            self.U2 = np.linspace(-self.L/2, self.L/2, Nu2, dtype=self.prec)
-            self.V1 = np.linspace(-self.L/2, self.L/2, Nv1, dtype=self.prec)
-            self.V2 = np.linspace(-self.L/2, self.L/2, Nv2, dtype=self.prec)
+            self.U1 = np.linspace(-self.Lu/2, self.Lu/2, Nu1, dtype=self.prec)
+            self.U2 = np.linspace(-self.Lu/2, self.Lu/2, Nu2, dtype=self.prec)
+            self.V1 = np.linspace(-self.Lv/2, self.Lv/2, Nv1, dtype=self.prec)
+            self.V2 = np.linspace(-self.Lv/2, self.Lv/2, Nv2, dtype=self.prec)
 
         self.du1 = self.U1[1] - self.U1[0]
         self.du2 = self.U2[1] - self.U2[0]
