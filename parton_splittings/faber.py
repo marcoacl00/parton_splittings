@@ -1,4 +1,4 @@
-from .system_gpu import *
+from .system import *
 from .hamiltonian import *
 
 
@@ -80,9 +80,11 @@ def faber_expand(sys, ht):
     
     m = 1
     coeff_array = [coeff(0, ht, gamma0, gamma1, lambF)] #compute first coefficient
+
     while (np.abs(coeff_array[-1]) > 1e-7 or m < 6):
         coeff_array.append(coeff(m, ht, gamma0, gamma1, lambF))
         m += 1
+
     print("Number of polynomials = ", m)
     fH_0 = 1.0 * sys.Fsol
 

@@ -1,21 +1,7 @@
 from .faber import *
 import matplotlib.pyplot as plt
 
-def compute_nHom(sis, t):
-    nHom = np.zeros_like(sis.Fsol, dtype=sis.prec_c)  
-
-    # Create a list of all index combinations
-    # Assign the results back to nHom
-    for i1 in range(1, sis.Nu1 - 1):
-        for i2 in range(1, sis.Nu2 - 1):
-            for j1 in range(sis.Nv1//2 - 1, sis.Nv1//2+1):
-                for j2 in range(sis.Nv2//2 - 1, sis.Nv2//2+1):
-                    nHom[0, i1, i2, j1, j2] = sis.source_term(t, i1, i2, j1, j2)
-                    nHom[1, i1, i2, j1, j2] = sis.source_term(t, i1, i2, j1, j2)
-
-    return nHom
-
-
+#------Simulation function------#
 
 def simulate(sist, ht, t_L, step_save = 10):
 
@@ -34,7 +20,7 @@ def simulate(sist, ht, t_L, step_save = 10):
 
         
         #construct Faber evolved solution
-        nHom = sis.source_term_gpu(sis.t)
+        nHom = sis.source_term_array(sis.t)
         print("First nHom computed")
         nFsol = sis.Fsol
         nFsol[0, 1:-1, 1:-1, 1:-1, 1:-1] +=  nHom * ht / 2

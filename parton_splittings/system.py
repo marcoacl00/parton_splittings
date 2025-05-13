@@ -5,16 +5,20 @@ import cupy as cp #for gpu
 class phsys:
     """This class contains all parameters and methods 
     exclusive to the chosen configuration 
-    (E[GeV], z, qF[GeV^2/fm], L[grid_size fm]). \n
+    (E[GeV], z, qF[GeV^2/fm], Lu[grid_size_u fm]),  Lv[grid_size_v fm]). \n
     Extra params: NcMode (Large Fac/Finite), 
     vertex (currently only "gamma_qq"),
-    parallel : none (no parallelization), "cpu/simd", and "gpu" 
+    optimization : "default" (with np/simd), and "gpu" 
     prec: precision type (default float32, better for gpu)
     """
     
-    def __init__(self, E, z, qF, Lu, Lv, Ncmode = "LNcFac", vertex = "gamma_qq", parallel = "gpu", prec = np.float32):
+    def __init__(self, E, z, qF, Lu, Lv, Ncmode = "LNcFac", vertex = "gamma_qq", optimization = "gpu", prec = np.float32):
+
+        #float precision and optimization type
         self.prec = prec
         self.prec_c = np.result_type(1j * prec(1))
+        self.optimization = optimization
+
         fm = prec(5.067)
         self.fm = fm
         self.E = prec(E * fm)
@@ -26,7 +30,6 @@ class phsys:
         self.vertex = vertex
         self.Lu = prec(Lu)
         self.Lv = prec(Lv)
-        self.parallel = parallel
 
         self.t = 0.01 #initial time
         self.Nu1 = None
@@ -54,7 +57,7 @@ class phsys:
         """Set the dimensions of the system for each axis u1, u2, v1 and v2"""
         self.Nu1, self.Nu2, self.Nv1, self.Nv2 = Nu1, Nu2, Nv1, Nv2
 
-        if self.parallel == "gpu":
+        if self.optimization == "gpu":
             #keep grid on GPU already
             self.U1 = cp.linspace(-self.Lu/2, self.Lu/2, Nu1, dtype=self.prec)
             self.U2 = cp.linspace(-self.Lu/2, self.Lu/2, Nu2, dtype=self.prec)
@@ -101,7 +104,7 @@ class phsys:
             raise ValueError("No value for the dimensions provided")
         else:
             if self.vertex == "gamma_qq":
-                if self.parallel == "gpu":
+                if self.optimization == "gpu":
                     self.Fsol = cp.zeros(shape=(2, self.Nu1, self.Nu2, self.Nv1, self.Nv2), dtype=self.prec_c)
                 else:
                     self.Fsol = np.zeros(shape=(2, self.Nu1, self.Nu2, self.Nv1, self.Nv2), dtype=self.prec_c)
@@ -174,13 +177,12 @@ class phsys:
         deltav2 = self.dirac_v2(j2)
         ddeltav2 = self.ddirac_v2(j2)
  
-
         non_hom_term = constant * damp * (ux * ddeltav1 *  deltav2 + 
                                           uy * deltav1 * ddeltav2 ) / (ux**2 + uy**2)
 
         return non_hom_term
     
-    def source_term_gpu(self, t):
+    def source_term_array(self, t):
 
         constant = 1j * self.omega / np.pi
         ux = self.U1[1:-1, None, None, None]
@@ -217,7 +219,6 @@ class phsys:
         return non_hom_term
 
 
-    
     
     def V_LargeNc_gamma_qq(self, sig1, sig2, i1, i2, j1, j2):
         """The potential matrix for gamma -> qqbar in the large Nc factorized (diag) limit"""

@@ -1,6 +1,6 @@
 # parton_splittings/__init__.py
 
-from .system_gpu import *
+from .system import *
 from .hamiltonian import *
 from .functions import *
 from .faber import *

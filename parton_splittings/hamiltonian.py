@@ -1,4 +1,4 @@
-from .system_gpu import *
+from .system import *
 
 def Kin(sys, sig, i1, i2, j1, j2, dt):
     
