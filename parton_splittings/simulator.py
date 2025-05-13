@@ -31,7 +31,7 @@ def simulate(sist, ht, t_L, step_save = 10):
         f_sol_n = faber_expand(sis, ht)
 
         #Build non homogneous term at t = sis.t + ht
-        nHom = sis.source_term_gpu(sis.t)
+        nHom = sis.source_term_array(sis.t)
         print("Second nHom computed")
 
         #complete the trapezoidal rule

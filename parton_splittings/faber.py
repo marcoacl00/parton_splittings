@@ -54,11 +54,12 @@ def faber_params(sys):
 
 
 
-def coeff(m, dt1, gamma_0, gamma_1, lambF):
+def coeff(m, dt1, gamma_0, gamma_1, lambF, optim):
 
     sqrt_term = (-1j/np.sqrt(gamma_1+0j))**m
     jv_arg = 2 * lambF * dt1*np.sqrt(gamma_1+0j)
-    jv_arg = jv_arg.get()
+    if optim == "gpu":
+        jv_arg = jv_arg.get()
     exp_arg = -1j * lambF * dt1 * gamma_0
 
 
@@ -79,10 +80,10 @@ def faber_expand(sys, ht):
 
     
     m = 1
-    coeff_array = [coeff(0, ht, gamma0, gamma1, lambF)] #compute first coefficient
+    coeff_array = [coeff(0, ht, gamma0, gamma1, lambF, sys.optimization)] #compute first coefficient
 
     while (np.abs(coeff_array[-1]) > 1e-7 or m < 6):
-        coeff_array.append(coeff(m, ht, gamma0, gamma1, lambF))
+        coeff_array.append(coeff(m, ht, gamma0, gamma1, lambF, sys.optimization))
         m += 1
 
     print("Number of polynomials = ", m)

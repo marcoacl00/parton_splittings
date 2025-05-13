@@ -11,18 +11,19 @@ qhat = 1.5 #Gev^2/fm
 #GRID SETTINGS
 Lu = 4 #fm
 Lv = 2 #fm
-Nu1 = 60
-Nu2 = 60
-Nv1 = 80
-Nv2 = 80
+Nu1 = 32
+Nu2 = 32
+Nv1 = 40
+Nv2 = 40
 
 #Time
 L_medium = 2 #fm
 
 ht = 0.01 #time step
 
+sis = phsys(E, z, qhat, Lu, Lv) #simulation with GPU
+#sis = phsys(E, z, qhat, Lu, Lv, optimization="default", prec=np.float64) #simulation with CPU (much slower)
 
-sis = phsys(E, z, qhat, Lu, Lv) #E, z, qF, Medium size (grid)
 sis.set_dim(Nu1,Nu2,Nv1,Nv2)   #Grid dimensions
 sis.init_fsol()
 

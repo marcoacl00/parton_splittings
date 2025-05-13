@@ -1,5 +1,5 @@
 import numpy as np 
-import cupy as cp #for gpu
+import cupy as cp #comment if not going to use GPU
 
 
 class phsys:
