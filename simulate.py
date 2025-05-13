@@ -1,20 +1,20 @@
-from parton_splittings_gpu import *
+from parton_splittings import *
 import time
 
 start_time = time.time()  
 #Params
-E = 50 #GeV
+E = 10 #GeV
 z = 0.5
 qhat = 1.5 #Gev^2/fm
 
 
 #GRID SETTINGS
-Lu = 10 #fm
+Lu = 4 #fm
 Lv = 2 #fm
-Nu1 = 80
-Nu2 = 80
-Nv1 = 60
-Nv2 = 60
+Nu1 = 60
+Nu2 = 60
+Nv1 = 80
+Nv2 = 80
 
 #Time
 L_medium = 2 #fm

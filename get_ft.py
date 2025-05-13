@@ -1,5 +1,4 @@
-from parton_splittings_gpu import *
-from fourier import *
+from parton_splittings import *
 import re
 import os 
 
@@ -57,4 +56,4 @@ def main(dir, filename):
     dir = "fourier_results/"
     np.save(dir + "ft_" + filename, np.array([Theta, Fp_an, Fp_sim]))
 
-main("simulations/", "E=50_z=0.5_qhat=1.5_Lu=6_Lv=2_Nu1=80_Nu2=80_Nv1=60_Nv2=60_L=2.npy")
+main("simulations/", "E=10_z=0.5_qhat=1.5_Lu=4_Lv=2_Nu1=60_Nu2=60_Nv1=80_Nv2=80_L=2.npy")

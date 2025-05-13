@@ -1,103 +1,89 @@
 from .faber import *
-from .fitterNN import *
 import matplotlib.pyplot as plt
 
-from joblib import Parallel, delayed
+def compute_nHom(sis, t):
+    nHom = np.zeros_like(sis.Fsol, dtype=sis.prec_c)  
+
+    # Create a list of all index combinations
+    # Assign the results back to nHom
+    for i1 in range(1, sis.Nu1 - 1):
+        for i2 in range(1, sis.Nu2 - 1):
+            for j1 in range(sis.Nv1//2 - 1, sis.Nv1//2+1):
+                for j2 in range(sis.Nv2//2 - 1, sis.Nv2//2+1):
+                    nHom[0, i1, i2, j1, j2] = sis.source_term(t, i1, i2, j1, j2)
+                    nHom[1, i1, i2, j1, j2] = sis.source_term(t, i1, i2, j1, j2)
+
+    return nHom
 
 
-def simulate(sist, ht, t_L, step_save):
-    cont = 0
+
+def simulate(sist, ht, t_L, step_save = 10):
 
     sis = sist
 
-    def compute_nHom_chunk(i1, i2, j1, j2, sis, t):
-        """
-        Compute a single element of nHom for the given indices.
-        """
-        return sis.source_term(t, i1, i2, j1, j2)
-
-    
-    def compute_nHom_parallel(sis, t):
-        """
-        Parallel computation of nHom using joblib.
-        """
-        nHom = np.zeros_like(sis.Fsol, dtype=np.complex128)  # Initialize nHom with the same shape as Fsol
-
-        # Create a list of all index combinations
-        index_combinations = [
-            (i1, i2, j1, j2)
-            for i1 in range(1, sis.Nu1 - 1)
-            for i2 in range(1, sis.Nu2 - 1)
-            for j1 in range(sis.Nv1//2 - 1, sis.Nv1//2+1)
-            for j2 in range(sis.Nv2//2 - 1, sis.Nv2//2+1)
-        ]
-
-        # Parallel computation of source_term for all index combinations
-        results = Parallel(n_jobs=-1)(  # Use all available CPU cores
-            delayed(compute_nHom_chunk)(i1, i2, j1, j2, sis, t)
-            for i1, i2, j1, j2 in index_combinations
-        )
-
-        # Assign the results back to nHom
-        for idx, (i1, i2, j1, j2) in enumerate(index_combinations):
-            nHom[:, i1, i2, j1, j2] = results[idx]
-
-        return nHom
-    
-    
+    ht_cp = 1.0 * ht
 
     while sis.t < t_L:
 
-        print("Processing t = ", sis.t)
+        if sis.t < 0.1:
+            ht = 5e-1 * ht_cp
+        else: 
+            ht = ht_cp
+
+        print("Processing t = ", round(sis.t, 3))
 
         
         #construct Faber evolved solution
-        nHom = compute_nHom_parallel(sis, sis.t)
+        nHom = sis.source_term_gpu(sis.t)
+        print("First nHom computed")
+        nFsol = sis.Fsol
+        nFsol[0, 1:-1, 1:-1, 1:-1, 1:-1] +=  nHom * ht / 2
+        nFsol[1, 1:-1, 1:-1, 1:-1, 1:-1] +=  nHom * ht / 2
 
-        sis.set_fsol(sis.Fsol + nHom * ht / 2)
-        f_sol_n = faber_expand(sis , ht)
+        sis.set_fsol(nFsol)
+
+        f_sol_n = faber_expand(sis, ht)
 
         #Build non homogneous term at t = sis.t + ht
-        nHom = compute_nHom_parallel(sis, sis.t+ht)
+        nHom = sis.source_term_gpu(sis.t)
+        print("Second nHom computed")
 
         #complete the trapezoidal rule
-        f_sol_n += 1/2 * nHom * ht
+        nFsol = f_sol_n
+        nFsol[0, 1:-1, 1:-1, 1:-1, 1:-1] +=  nHom * ht / 2
+        nFsol[1, 1:-1, 1:-1, 1:-1, 1:-1] +=  nHom * ht / 2
 
-        #update fsol
-        sis.set_fsol(f_sol_n)
+        sis.set_fsol(nFsol)
 
-        sis.increase_t(ht)
+        
 
-        if cont%step_save == 0:
-            # plt.plot(sis.U1, np.real(sis.Fsol[1, :, sis.Nu2//2, sis.Nv1//2, sis.Nv2//2]), 
+        # if cont%step_save == 0:
+            # plt.plot(sis.U1.get(), np.real(sis.Fsol[1, :, sis.Nu2//2, sis.Nv1//2, sis.Nv2//2].get()), 
             #          label = "Re.")
-            # plt.plot(sis.U1, np.imag(sis.Fsol[1, :, sis.Nu2//2, sis.Nv1//2, sis.Nv2//2]), 
+            # plt.plot(sis.U1.get(), np.imag(sis.Fsol[1, :, sis.Nu2//2, sis.Nv1//2, sis.Nv2//2].get()), 
             #          label = "Im.")
             # plt.xlabel("$u_x$")
             # plt.ylabel("$F(u_x, 0, 0, 0)$")
             # plt.legend()
-            # plt.show()
+            # name = "tu_{}".format(round(sis.t, 3))
+            # plt.savefig("plot_images/" + name + ".png")
+            # plt.close()
 
-            # plt.plot(sis.V1, np.real(sis.Fsol[1,  sis.Nu1//2,  sis.Nu2//2, :, sis.Nv2//2 ]), 
+            # plt.plot(sis.V1.get(), np.real(sis.Fsol[1,  sis.Nu1//2,  sis.Nu2//2, :, sis.Nv2//2 ].get()), 
             #          label = "Real.")
-            # plt.plot(sis.V1, np.imag(sis.Fsol[1, sis.Nu1//2,  sis.Nu2//2, :,  sis.Nv2//2 ]), 
+            # plt.plot(sis.V1.get(), np.imag(sis.Fsol[1, sis.Nu1//2,  sis.Nu2//2, :,  sis.Nv2//2 ].get()), 
             #          label = "Imag.")
             # plt.xlabel("$u_x$")
             # plt.ylabel("$F(0, 0, v_x, 0)$")
             # plt.legend()
-            # plt.show()
+            # name = "tv_{}".format(round(sis.t, 3))
+            # plt.savefig("plot_images/" + name+ ".png")
+            # plt.close()
             
-            file_name = "fsol_t={}_E={}GeV_q={}_z={}.npy".format(round(sis.t, 3), 
-                                                                 round(sis.E/sis.fm, 1), 
-                                                                 round(sis.qhat/sis.fm**2,1), 
-                                                                 round(sis.z, 2))
-            print("Written ", file_name)
-            np.save("saved_files/" + file_name, sis.Fsol)
         
-        cont +=1
+        # cont +=1
         
-
-        print(sis.t)
+        sis.increase_t(ht)
     
     return sis
 
