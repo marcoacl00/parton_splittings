@@ -1,6 +1,9 @@
-from parton_splittings import *
+from splittings_code import *
+import matplotlib.pyplot as plt
 import re
 import os 
+import sys
+
 
 def main(dir, filename):
 
@@ -34,7 +37,7 @@ def main(dir, filename):
     fsol = np.load(dir + filename)
     fsol = cp.asarray(fsol)
 
-    Theta = np.arange(0.1, 0.9, 0.02)
+    Theta = np.arange(0.1, 0.9, 0.1)
     Fp_an  = .0 * Theta
     Fp_sim = .0 * Theta
 
@@ -46,14 +49,31 @@ def main(dir, filename):
                                     chunksize_U1 = 8, 
                                     chunksize_U2 = 8).get()
 
-        Fp_an[th] = fp
-        Fp_sim[th] = Fp_prime
+        Fp_an[th] = Theta[th]*fp
+        Fp_sim[th] = Theta[th]*Fp_prime
 
-        print("Theta = ",Theta[th])
+        print("Theta = c",Theta[th])
         print("Analytical = ", Theta[th]**2 / 2 * fp)
         print("Simulation = ", Theta[th]**2 / 2 *Fp_prime)
 
     dir = "fourier_results/"
     np.save(dir + "ft_" + filename, np.array([Theta, Fp_an, Fp_sim]))
 
-main("simulations/", "E=10_z=0.5_qhat=1.5_Lu=4_Lv=2_Nu1=60_Nu2=60_Nv1=80_Nv2=80_L=2.npy")
+    #do plotting
+    plt.figure(figsize=(10, 6))
+    plt.plot(Theta, Fp_an, label='Analytical', marker='o')
+    plt.plot(Theta, Fp_sim, label='Simulation', marker='x')
+    plt.xlabel('Theta')
+    plt.ylabel('Fp')
+    plt.title('Comparison of Analytical and Simulation Fp')
+    plt.legend()
+    plt.grid()
+    plt.savefig(dir + "ft_" + filename.replace('.npy', '.pdf'), format='pdf')
+    plt.close()
+    
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: python get_ft.py <directory>")
+        sys.exit(1)
+    main("simulations/", sys.argv[1])
