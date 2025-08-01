@@ -6,7 +6,7 @@ The position space simulation is not automatized like the momentum space one. Bu
 
 **KNOWN ISSUES**
 
-- The code is still lacking a proper boundary treatment, so most results will have a poor behavior near it (and in some cases, the most domain gets affected)
+- The code is still lacking a proper boundary treatment, so most results will have a poor behavior near it (and in some cases, most of the domain gets affected)
 
 - The Fmed^in-in -> 2 for large theta (and large energies) is still not completely observed, as there are systematic issues that affect this limit (possibly due to boundaries)
 
