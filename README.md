@@ -10,7 +10,7 @@ The position space simulation is not automatized like the momentum space one. Bu
 
 - The Fmed^in-in -> 2 for large theta (and large energies) is still not completely observed, as there are systematic issues that affect this limit (possibly due to boundaries)
 
-- Very high energies are still hard to resolve, specially for low medium length (L <~ 1fm). The solution is extremely oscillatory in this regime; however, it is also true 
+- Very high energies are still hard to resolve, specially for low medium length (L <~ 1fm). The solution is extremely oscillatory in this regime; however, it is also true that the modification factor is very small in these regimes, and the finite Nc corrections don't have much impact here
 
 
 **TO BE DONE**
@@ -19,6 +19,6 @@ The position space simulation is not automatized like the momentum space one. Bu
 
 - Fine tune the boundary condition (maybe think of something around Fmed_in_out)
 
-- A full numerical analysis: varying parameters, do some analytical estimations of numerical errors, etc. 
+- A full numerical analysis: varying parameters, do some analytical estimations of numerical errors and corrections, etc.
 
 - Get the q -> qg vertex 
