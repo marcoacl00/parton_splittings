@@ -315,6 +315,7 @@ class physys_new:
         self.damp = prec(damp)
         self.xp = cp if optimization == "gpu" else np
         self.t = 1e-3 #initial time
+        self.optimization = optimization
         self.Nk1 = None
         self.Nk2 = None
         self.Nl1 = None
@@ -340,16 +341,18 @@ class physys_new:
 
         if self.optimization == "gpu":
             #keep grid on GPU already
-            eps = 1e-6  # to avoid numerical issues at the edges
-            self.K1 = cp.linspace(-eps, self.Lk - eps, Nk1, dtype=self.prec)
-            self.K2 = cp.linspace(-eps, self.Lk - eps, Nk2, dtype=self.prec)
+            deltae = 1e-4  # to avoid numerical issues at the edges
+            print("Using GPU optimization")
+            self.K1 = cp.linspace(-deltae, self.Lk - deltae, Nk1, dtype=self.prec)
+            self.K2 = cp.linspace(0, self.Lk, Nk2, dtype=self.prec)
             self.L1 = cp.linspace(-self.Ll/2, self.Ll/2, Nl1, dtype=self.prec)
             self.L2 = cp.linspace(-self.Ll/2, self.Ll/2, Nl2, dtype=self.prec)
 
         else:
-            eps = 1e-6  # to avoid numerical issues at the edges
-            self.K1 = np.linspace(-eps, self.Lk - eps, Nk1, dtype=self.prec)
-            self.K2 = np.linspace(-eps, self.Lk - eps, Nk2, dtype=self.prec)
+            deltae = 1e-3  # to avoid numerical issues at the edges
+            print("Warning: Using CPU. Simulation will take significantly longer.")
+            self.K1 = np.linspace(-deltae, self.Lk - deltae, Nk1, dtype=self.prec)
+            self.K2 = np.linspace(0, self.Lk, Nk2, dtype=self.prec)
             self.L1 = np.linspace(-self.Ll/2, self.Ll/2, Nl1, dtype=self.prec)
             self.L2 = np.linspace(-self.Ll/2, self.Ll/2, Nl2, dtype=self.prec)
 
@@ -365,12 +368,12 @@ class physys_new:
     def beta(self, t):
         """The frequency of spatial oscilations"""
         co = self.omega * self.Omega * 0.5 * 1 / np.tan(self.Omega * t)
-        return self.xp.real(co)
+        return np.real(co)
     
     def eps(self, t):
         """Damp factor on the source term"""
         co = self.omega * self.Omega * 0.5 * 1 / np.tan(self.Omega * t)
-        return self.xp.imag(co)
+        return np.imag(co)
 
     
     def source_term_array(self, t):
@@ -391,13 +394,11 @@ class physys_new:
         kdotl = K1 * L1 + K2 * L2
 
         fac1 = 1 / (1 + 4 * kdotl / (4 * ksqrd + lsqrd))
-        fac2 = 1 - self.xp.exp(-(ksqrd + lsqrd/4 + kdotl) / (4 * Gamma))
-
-        damp_term = self.xp.exp(-self.damp * lsqrd)
+        fac2 = 1 - np.exp(-(ksqrd + lsqrd/4 + kdotl) / (4 * Gamma))
 
         
 
-        non_hom_term = - constant * fac1 * fac2 * damp_term
+        non_hom_term = - constant * fac1 * fac2 
 
         return non_hom_term 
     
@@ -414,6 +415,7 @@ class physys_new:
                     self.Fsol = np.zeros(shape=(2, self.Nk1, self.Nk2, self.Nl1, self.Nl2), dtype=self.prec_c)
             else: 
                 raise TypeError("Other vertices not yet available")
+            
     def set_fsol(self, arr):
         """Set the solution grid"""
         self.Fsol = arr

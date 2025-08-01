@@ -67,7 +67,7 @@ def faber_params_new_momentum(sys):
     omega = sys.omega
 
     #Maximum real eigenvalue
-    lam_re_max = Lk * Ll / (omega) / 2
+    lam_re_max = Lk * Ll / (omega) 
 
     #Minimum real eigenvalue
 

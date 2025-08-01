@@ -1,4 +1,4 @@
-# parton_splittings/__init__.py
+#splittings_code/__init__.py
 
 
 from .system import *

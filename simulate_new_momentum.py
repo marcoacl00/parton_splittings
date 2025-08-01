@@ -9,7 +9,6 @@ def main():
 
     
     sis = physys_new(E, z, qhat, Lk, Ll, Ncmode=NcMode, optimization="gpu") #simulation with GPU
-    #sis = phsys(E, z, qhat, Lu, Lv, optimization="default", prec=np.float64) #simulation with CPU (much slower)
 
     sis.set_dim(Nk1,Nk2,Nl1,Nl2)   #Grid dimensions
     sis.init_fsol()
@@ -63,8 +62,8 @@ if __name__ == "__main__":
     E = args.E
     z = args.z
     qhat = args.qhat
-    Lk = args.Lk if args.Lk is not None else 0.6 * E
-    Ll = args.Ll if args.Ll is not None else 0.1 * E
+    Lk = args.Lk 
+    Ll = args.Ll 
     Nk1 = args.Nk1
     Nk2 = args.Nk2
     Nl1 = args.Nl1
