@@ -6,7 +6,7 @@ The position space simulation is not automatized like the momentum space one. Bu
 
 **Requirements**
 
-- Numpy, Scipy, Cupy (CUDA), Matplotlib
+- Numpy, Scipy, Cupy (CUDA), Matplotlib, tqdm
 
 **KNOWN ISSUES**
 
