@@ -1,6 +1,6 @@
 This code is executed using the run.script.py, for the momentum simulation with good coordinates. There it's possible to change all simulation parameters.
 
-It is extremely recommended running this using an NVIDIA GPU (CUDA: CuPy), as it takes substantially less time. CPUs (through numpy) can be used bot for very small grids, as its version is not fully optimized yet.
+It is extremely recommended running this code using an NVIDIA GPU (CUDA: CuPy), as it takes substantially less time. CPUs (through numpy) can be used for for very small grids, as its version is not fully optimized yet. If using CPU, you should comment the line "import cupy" if you don't have it installed, in whatever files it shows up.
 
 The position space simulation is not automatized like the momentum space one. But all ingredients are there (simulate_pos.py -> get_ft.py).
 
