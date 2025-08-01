@@ -4,6 +4,10 @@ It is extremely recommended running this code using an NVIDIA GPU (CUDA: CuPy), 
 
 The position space simulation is not automatized like the momentum space one. But all ingredients are there (simulate_pos.py -> get_ft.py).
 
+**Requirements**
+
+- Numpy, Scipy, Cupy (CUDA), Matplotlib
+
 **KNOWN ISSUES**
 
 - The code is still lacking a proper boundary treatment, so most results will have a poor behavior near it (and in some cases, most of the domain gets affected)
