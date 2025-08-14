@@ -261,9 +261,8 @@ def Hamiltonian_new_momentum(sys, f):
 
         q_4_CF = 0.25 * sys.qhat/CF
 
-        V_term_00 = (CF * (0.5 * (deriv2_l1_0 + deriv2_l2_0 + 
-                                           deriv2_k1_0 + deriv2_k2_0)) 
-
+        V_term_00 = (CF * (0.5 * (deriv2_l1_0 + deriv2_l2_0) + 
+                                           2 * (deriv2_k1_0 + deriv2_k2_0)) 
                               + 1/Nc * (deriv2_k1_0 + deriv2_k2_0 -
                                          0.25 * (deriv2_l1_0 + deriv2_l1_0)))
 
