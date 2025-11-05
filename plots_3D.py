@@ -5,6 +5,7 @@ from scipy.interpolate import RegularGridInterpolator
 import re
 import sys
 import os
+from scipy.integrate import simpson
 
 def main(file_name):
     array = np.load("simulations/" + file_name)
@@ -17,6 +18,7 @@ def main(file_name):
         den = 2*omega*Omega/np.tan(Omega*t)+1j*qF*(z**2+(1-z)**2)*(L-t)
         
         return pre*(1-num/den*np.exp(-1j*(p1**2+p2**2)/den))
+    
 
 
     def fasit2Ncdiagint(L,p1,p2,z, omega, Omega, qF):
@@ -37,25 +39,25 @@ def main(file_name):
 
 
     # Extract variables from the file name using regex
-    pattern = r"E=(?P<E>[\d\.]+)_z=(?P<z>[\d\.]+)_qhat=(?P<qhat>[\d\.]+)_Lk=(?P<Lk>[\d\.]+)_Ll=(?P<Ll>[\d\.]+)_Nk1=(?P<Nk1>\d+)_Nk2=(?P<Nk2>\d+)_Nl1=(?P<Nl1>\d+)_Nl2=(?P<Nl2>\d+)_L=(?P<L>[\d\.]+)_NcMode=(?P<NcMode>[^\.]+).npy"
+    pattern = r"E=([\d\.]+)_z=([\d\.]+)_qhat=([\d\.]+)_Lk=([\d\.]+)_Ll=([\d\.]+)_Nk=(\d+)_Nl=(\d+)_Npsi=(\d+)_L=([\d\.]+)_NcMode=([^.]+)_vertex=([^.]+)\.npy"
     match = re.search(pattern, file_name)
 
     if match:
-        E = float(match.group("E")) 
-        z = float(match.group("z"))
-        qhat = float(match.group("qhat")) 
-        Lk = float(match.group("Lk")) 
-        Ll = float(match.group("Ll"))
-        L = float(match.group("L"))
-        Nk1 = int(match.group("Nk1"))
-        Nk2 = int(match.group("Nk2"))
-        Nl1 = int(match.group("Nl1"))
-        Nl2 = int(match.group("Nl2"))
-        NcMode = match.group("NcMode")
+        E = float(match.group(1))
+        z = float(match.group(2))
+        qhat = float(match.group(3))
+        Lk = float(match.group(4))
+        Ll = float(match.group(5))
+        Nk = int(match.group(6))
+        Nl = int(match.group(7))
+        Npsi = int(match.group(8))
+        L = float(match.group(9))
+        NcMode = match.group(10)
+        vertex = match.group(11)
     else:
         raise ValueError("Could not extract parameters from file name.")
 
-    print(f"Parameters extracted: E={E}, z={z}, qhat={qhat}, Lk={Lk}, Ll={Ll}, L={L}")
+    print(f"Parameters extracted: E={E}, z={z}, qhat={qhat}, Lk={Lk}, Ll={Ll}, Nk={Nk}, Nl={Nl}, Npsi={Npsi}, L={L}, NcMode={NcMode}")
 
     fm = 5.067
     # Convert units from GeV to fm
@@ -63,81 +65,103 @@ def main(file_name):
     qhat = qhat * fm**2
     Lk = Lk * fm
     Ll = Ll * fm
+    Nc = 3
+    CF = (Nc**2 - 1) / (2 * Nc)
+    CA = Nc
 
     omega = z * (1-z) * E
-    Omega = np.sqrt(qhat / omega) * (1-1j)/2
+    if vertex == "gamma_qq":
+        Omega = np.sqrt(qhat / omega) * (1-1j)/2
+
+    elif vertex == "q_qg":
+        
+        qab = 0.5 * ((CA / CF) * (z) + (1-z)**2) * qhat
+        Omega = np.sqrt(qab / omega) * (1-1j)/2
+    
+    elif vertex == "g_gg":
+        qab = (1 - z + z**2) * qhat
+        Omega = np.sqrt(qab / omega) * (1-1j)/2
 
     # Prepare momentum grids
-    eps = 1e-4
-    grid_k1 = np.linspace(-eps, Lk - eps, Nk1)
-    grid_k2 = np.linspace(0, Lk, Nk2)
-    grid_l1 = np.linspace(-Ll/2, Ll/2, Nl1)
-    grid_l2 = np.linspace(-Ll/2, Ll/2, Nl2)
+    eps = Lk / (Nk - 1)
+    grid_k = np.linspace(0, Lk, Nk) + eps
+    grid_l = np.linspace(0, Ll, Nl) 
+    grid_psi = np.linspace(0, 2*np.pi, Npsi)
 
 
 
-    Theta = grid_k1 / omega
+    Theta = grid_k / omega
     # Interpolator for array[1]
     #interp = RegularGridInterpolator((grid_k1, grid_k2, grid_l1, grid_l2), array[1], bounds_error=False)
 
-    # Evaluate at (k, l=0)
-    #f_vals_interp = np.zeros_like(mom_theo, dtype=np.complex128)
-    #for i in range(len(mom_theo)):
-        #f_vals_interp[i] = interp((mom_theo[i], 0, 0, 0))
-
-    # Find the index in grid_k2 closest to 0
-    idx_k2_0 = np.argmin(np.abs(grid_k2))
-    print(f"Index of grid_k2 closest to 0: {idx_k2_0}")
-    print(f"Value of grid_k2 at this index: {grid_k2[idx_k2_0]}")
-
-    print("Considering 0 for l1:", grid_l1[Nl1//2])
 
     f_vals_theo = .0 * Theta * 1j
     f_iout_vals = .0 * Theta * 1j
 
-    for i in range(len(grid_k1)):
-        f_vals_theo[i] = fasit2Ncdiagint(L, grid_k1[i], 0, z, omega, Omega, qhat)
+    for i in range(len(grid_k)):
+        f_vals_theo[i] = fasit2Ncdiagint(L, grid_k[i], 0, z, omega, Omega, qhat)
         f_iout_vals[i] = np.real(F_in_out(L, omega, Omega, Theta[i]))
-    print(array.shape)
 
 
     F_med_sim = .0 * Theta 
+
+    dpsi = grid_psi[1] - grid_psi[0]
     for i in range(len(Theta)):
-        F_med_sim[i] = Theta[i]**2 / 2 * np.real(array[1, i, idx_k2_0, Nl1//2, Nl2//2])
+        # collect the integrand values for all psi
+        integrand = np.real(array[1, i, 0, :]) * Theta[i]**2 / 2
+
+
+        # apply Simpson's 1/3 rule
+        F_med_sim[i] = (1 / (2 * np.pi)) * simpson(integrand, dx=dpsi)
+       # F_med_sim[i] = np.real(array[1, i, 0, 0]) * Theta[i]**2 / 2
+
 
     Fmed_ii_theo = Theta**2 /2 * np.real(f_vals_theo)
 
+    theta_indexes = np.where(Theta <= 1)[0]
+    Theta = Theta[theta_indexes]
+    Fmed_ii_theo = Fmed_ii_theo[theta_indexes]
+    F_med_sim = F_med_sim[theta_indexes]
+    f_iout_vals = f_iout_vals[theta_indexes]
+
+   
+    Fmed_ii_theo =   Fmed_ii_theo
+    F_med_sim =   F_med_sim
+    f_iout_vals =  f_iout_vals
+    
+    F_in_out_ = F_med_sim + f_iout_vals
+
     # Plotting F_in-in
-    plt.plot(Theta, Fmed_ii_theo, label=r"Large $N_c$ fac.", linestyle='--', color = 'blue')
-    plt.plot(Theta, F_med_sim, 'o', markersize = 2, label="Sim.", color = 'red')
+    #plt.plot(Theta, Fmed_ii_theo, label=r"Large $N_c$ fac.", linestyle='--', color = 'blue')
+    plt.plot(Theta, F_med_sim, '-o', markersize = 2, label="Sim.", color = 'red')
     theta_lim = Theta[-1] if Theta[-1] < 1 else 1
     plt.xlabel(r"$\theta$")
     plt.ylabel("$F^{in-in}$")
     plt.legend()
-    plt.title(r"$E = {:.1f}$ GeV, $z = {:.2f}$, $\hat{{q}} = {:.1f}$ GeV$^2$/fm, $L = {:.1f}$ fm, NcMode = {}"
-              .format(E / fm, z, qhat / fm**2, L, NcMode), size=10)
+    plt.title(r"$E = {:.1f}$ GeV, $z = {:.2f}$, $\hat{{q}} = {:.1f}$ GeV$^2$/fm, $L = {:.1f}$ fm, NcMode = {}, vertex = {}"
+              .format(E / fm, z, qhat / fm**2, L, NcMode, vertex), size=10)
     plt.xlim(0, theta_lim)
     plt.grid(alpha = 0.2)
 
     # Ensure the saved_results_plots directory exists
     os.makedirs("saved_results_plots", exist_ok=True)
-    plt.savefig(f"saved_results_plots/F_in-in_E={E/fm:.1f}_z={z:.2f}_qhat={qhat/fm**2:.1f}_L={L:.1f}_NcMode={NcMode}.pdf", format='pdf', bbox_inches='tight')
+    plt.savefig(f"saved_results_plots/F_in-in_E={E/fm:.1f}_z={z:.2f}_qhat={qhat/fm**2:.1f}_L={L:.1f}_NcMode={NcMode}_vertex={vertex}.pdf", format='pdf', bbox_inches='tight')
     plt.close()
 
     #Plotting F = F_in-in + F_in-out
-    F_in_out_ = F_med_sim + f_iout_vals
+
     plt.plot(Theta, Fmed_ii_theo + f_iout_vals, label=r"Large $N_c$ fac.", linestyle='--', color = 'blue')
-    plt.plot(Theta, F_in_out_, 'o', markersize = 2, label="Sim.", color = 'red')
+    plt.plot(Theta, F_in_out_, '-o', markersize = 1.8, linewidth = 0.8, label="Numerical", color = 'red')
     plt.xlabel(r"$\theta$")
     plt.ylabel(r"$F_{med}$")
     plt.legend()
-    plt.title(r"$E = {:.1f}$ GeV, $z = {:.2f}$, $\hat{{q}} = {:.1f}$ GeV$^2$/fm, $L = {:.1f}$ fm, NcMode = {}"
-              .format(E / fm, z, qhat / fm**2, L, NcMode), size=10)
+    plt.title(r"$E = {:.1f}$ GeV, $z = {:.2f}$, $\hat{{q}} = {:.1f}$ GeV$^2$/fm, $L = {:.1f}$ fm, NcMode = {}, vertex = {}"
+              .format(E / fm, z, qhat / fm**2, L, NcMode, vertex), size=10)
     plt.xlim(0, theta_lim)
     plt.grid(alpha = 0.2)
 
     # Save the plot
-    plt.savefig(f"saved_results_plots/F_med_E={E/fm:.1f}_z={z:.2f}_qhat={qhat/fm**2:.1f}_L={L:.1f}_NcMode={NcMode}.pdf", format='pdf', bbox_inches='tight')
+    plt.savefig(f"saved_results_plots/F_med_E={E/fm:.1f}_z={z:.2f}_qhat={qhat/fm**2:.1f}_L={L:.1f}_NcMode={NcMode}_vertex={vertex}.pdf", format='pdf', bbox_inches='tight')
     plt.close()
 
 

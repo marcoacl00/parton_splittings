@@ -1,150 +1,20 @@
 from .system import *
 
-def Kin(sys, sig, i1, i2, j1, j2, dt):
-    
-    f = sys.Fsol
-    du1 = sys.du1
-    du2 = sys.du2
-    dv1 = sys.dv1
-    dv2 = sys.dv2
-    u1 = sys.U1[i1]
-    u2 = sys.U2[i2]
 
-    beta_t = sys.beta(sys.t)
-    beta_t12 = sys.beta(sys.t + dt/2)
-    beta_t1 = sys.beta(sys.t + dt)
-
-    omega = sys.omega
-
-    #a bunch of array extractions to compute the derivative
-    f_ = f[sig, i1, i2, j1, j2]
-    f_uxplus1 = f[sig, i1+1, i2, j1, j2]
-    f_uxminus1 = f[sig, i1-1, i2, j1, j2]
-    f_uyplus1 = f[sig, i1, i2+1, j1, j2]
-    f_uyminus1 = f[sig, i1, i2-1, j1, j2]
-    f_vxplus1 = f[sig, i1, i2, j1+1, j2]
-    f_vxminus1 = f[sig, i1, i2, j1-1, j2]
-    f_vyplus1 = f[sig, i1, i2, j1, j2+1]
-    f_vyminus1 = f[sig, i1, i2, j1, j2-1]
-
-    #finite difference approx for derivatives
-    deriv_ux = (f_uxplus1 - f_uxminus1)/(2*du1)
-    deriv_uy = (f_uyplus1 - f_uyminus1)/(2*du2)
-
-    deriv2_ux = (f_uxplus1 - 2 * f_ + f_uxminus1)/(du1**2)
-    deriv2_uy = (f_uyplus1 - 2 * f_ + f_uyminus1)/(du2**2)
-
-    deriv2_vx = (f_vxplus1 - 2 * f_ + f_vxminus1)/(dv1**2)
-    deriv2_vy = (f_vyplus1 - 2 * f_ + f_vyminus1)/(dv2**2)
-
-    deriv2_u = deriv2_ux + deriv2_uy
-    deriv2_v = deriv2_vx + deriv2_vy
-
-    dir_deriv = u1 * deriv_ux + u2 * deriv_uy
-
-    beta_eff = (beta_t + 4*beta_t12 + beta_t1)/6
-
-    return -1/(2 * omega) * (deriv2_u + 4j * beta_eff * dir_deriv - deriv2_v) 
-
-    
-
-def Kin_par(sys, f, sig, dt):
-    """Computes kinetic operator without applying boundary conditions.
-    Ghost points are added, but not physically constrained."""
-    
-    du1, du2 = sys.du1, sys.du2
-    dv1, dv2 = sys.dv1, sys.dv2
-    u1 = sys.U1[:, None, None, None]
-    u2 = sys.U2[None, :, None, None]
-
-    beta_t = sys.beta(sys.t)
-    beta_t12 = sys.beta(sys.t + dt / 2)
-    beta_t1 = sys.beta(sys.t + dt)
-    beta_eff = (beta_t + 4 * beta_t12 + beta_t1) / 6
-
-    omega = sys.omega
-
-    f_ = f[sig]
-    
-    # Pad f_ in all dimensions with 1 ghost cell on each side using anti-periodic boundaries
-
-    f_padded = cp.pad(f_, ((1, 1), (1, 1), (1, 1), (1, 1)), mode='edge')  # Pad with ghost cells
-
-    del f_    
-    # Compute derivatives on the original domain using ghost values
-    deriv_ux = (f_padded[2:, 1:-1, 1:-1, 1:-1] - f_padded[:-2, 1:-1, 1:-1, 1:-1]) / (2 * du1)
-    deriv_uy = (f_padded[1:-1, 2:, 1:-1, 1:-1] - f_padded[1:-1, :-2, 1:-1, 1:-1]) / (2 * du2)
-
-    dir_deriv = u1 * deriv_ux + u2 * deriv_uy
-
-    del deriv_ux, deriv_uy
-
-    deriv2_ux = (f_padded[2:, 1:-1, 1:-1, 1:-1] - 2 * f_padded[1:-1, 1:-1, 1:-1, 1:-1] + f_padded[:-2, 1:-1, 1:-1, 1:-1]) / du1**2
-    deriv2_uy = (f_padded[1:-1, 2:, 1:-1, 1:-1] - 2 * f_padded[1:-1, 1:-1, 1:-1, 1:-1] + f_padded[1:-1, :-2, 1:-1, 1:-1]) / du2**2
-
-    deriv2_u = deriv2_ux + deriv2_uy
-
-    del deriv2_ux, deriv2_uy
-
-    deriv2_vx = (f_padded[1:-1, 1:-1, 2:, 1:-1] - 2 * f_padded[1:-1, 1:-1, 1:-1, 1:-1] + f_padded[1:-1, 1:-1, :-2, 1:-1]) / dv1**2
-    deriv2_vy = (f_padded[1:-1, 1:-1, 1:-1, 2:] - 2 * f_padded[1:-1, 1:-1, 1:-1, 1:-1] + f_padded[1:-1, 1:-1, 1:-1, :-2]) / dv2**2
-
-    deriv2_v = deriv2_vx + deriv2_vy
-
-    del deriv2_vx, deriv2_vy
-
-
-    return -1 / (2 * omega) * (deriv2_u + 4j * beta_eff * dir_deriv - deriv2_v)
-
-
-
-
-
-def V_eff_gamma_qq_LNc(sys, sig, sigp, i1, i2, j1, j2, dt):
-
-    if sig == sigp:
-        dt_2 = dt/2
-        
-        beta_t = sys.beta(sys.t)
-        beta_t12 = sys.beta(sys.t + dt_2)
-        beta_t1 = sys.beta(sys.t + dt)
-        debeta_t = sys.dbeta(sys.t)
-        debeta_t12 = sys.dbeta(sys.t + dt_2)
-        debeta_t1 = sys.dbeta(sys.t + dt)
-
-        beta_eff = (beta_t + 4 * beta_t12 + beta_t1)/6
-        beta2_eff = (beta_t**2 + 4 * beta_t12**2 + beta_t1**2)/6
-        dbeta_eff = (debeta_t + 4 * debeta_t12 + debeta_t1)/6
-
-        u_sqrd = sys.U1[i1]**2 + sys.U2[i2]**2
-
-        V_ = sys.V_LargeNc_gamma_qq(sig, sigp, i1, i2, j1, j2)
-
-        ret_val = 1j * V_ +  dbeta_eff * u_sqrd
-        ret_val -= 1/(2 * sys.omega) * (4j * beta_eff - 4 * beta2_eff * u_sqrd)
-
-    else: 
-        V_ = sys.V_LargeNc_gamma_qq(sig, sigp, i1, i2, j1, j2)
-
-        ret_val = 1j*V_
-    
-    return ret_val
-
-
-
-
-def Hamiltonian_new_momentum(sys, f):
+def Hamitlonian3D_gammaqq(sys, f):
     """
     Computes Hf.
-    This acts as M(partial_p, partial_q, ...) on f.
-    Assumes f has shape (2, Np1, Np2, Nq1, Nq2).
+    This acts as M(partial_k, partial_l, partial_psi) on f.
+    Assumes f has shape (2, Nk, Nl, Npsi).
     """
-    dk1, dk2 = sys.dk1, sys.dk2
-    dl1, dl2 = sys.dl1, sys.dl2
-    k1 = sys.K1[:, None, None, None]
-    k2 = sys.K2[None, :, None, None]
-    l1 = sys.L1[None, None, :, None]
-    l2 = sys.L2[None, None, None, :]
+
+    dk = sys.dk
+    dl = sys.dl
+    dpsi = sys.dpsi
+    k = sys.K[:, None, None]
+    l = sys.L[None, :, None]
+    psi = sys.psi[None, None, :]
+    epsl = dl  # to avoid division by zero
 
     omega = sys.omega
     f_0 = f[0]
@@ -153,215 +23,696 @@ def Hamiltonian_new_momentum(sys, f):
 
     # Second derivatives in momentum space (bulk only)
 
-    # Pad both f_0 and f_1 with linear extrapolation
-    #if sys.optimization == "gpu":
-    #    f_0_padded = cp.pad(f_0, ((1, 1), (1, 1), (1, 1), (1, 1)), mode='edge')  # Pad with ghost cells
-    #    f_1_padded = cp.pad(f_1, ((1, 1), (1, 1), (1, 1), (1, 1)), mode='edge')  # Pad with ghost cells
-    #else: 
-    #    f_0_padded = np.pad(f_0, ((1, 1), (1, 1), (1, 1), (1, 1)), mode='edge')  # Pad with ghost cells
-    #    f_1_padded = np.pad(f_1, ((1, 1), (1, 1), (1, 1), (1, 1)), mode='edge')  # Pad with ghost cells
-
     xp = cp if sys.optimization == "gpu" else np
-    f_0_padded = xp.pad(f_0, ((1, 1), (1, 1), (1, 1), (1, 1)), mode='edge')  # Pad with ghost cells
-    f_1_padded = xp.pad(f_1, ((1, 1), (1, 1), (1, 1), (1, 1)), mode='edge')
 
-    # simple derivatives
-    #deriv_k1 = (f_padded[2:, 1:-1, 1:-1, 1:-1] - f_padded[:-2, 1:-1, 1:-1, 1:-1]) / (2 * dk1)
-    #deriv_k2 = (f_padded[1:-1, 2:, 1:-1, 1:-1] - f_padded[1:-1, :-2, 1:-1, 1:-1]) / (2 * dk2)
-
-
-    # Mixed partial derivatives (bulk only)
-    # deriv2_k1_l1 = (f_padded[2:, 1:-1, 2:, 1:-1] - 
-    #                 f_padded[2:, 1:-1, :-2, 1:-1] - 
-    #                 f_padded[:-2, 1:-1, 2:, 1:-1] + 
-    #                 f_padded[:-2, 1:-1, :-2, 1:-1]) / (4 * dk1 * dl1)
-    
-    # deriv2_k2_l2 = (f_padded[1:-1, 2:, 1:-1, 2:] - 
-    #                 f_padded[1:-1, 2:, 1:-1, :-2] - 
-    #                 f_padded[1:-1, :-2, 1:-1, 2:] + 
-    #                 f_padded[1:-1, :-2, 1:-1, :-2]) / (4 * dk2 * dl2)
+    f_0_padded = xp.pad(f_0, ((1, 1), (1, 1), (1, 1)), mode='edge')  # Pad with ghost cells
+    f_1_padded = xp.pad(f_1, ((1, 1), (1, 1), (1, 1)), mode='edge')  # Pad with ghost cells
     
 
+    
+
+    # required first derivatives
+
+    deriv_k_0 = (f_0_padded[2:, 1:-1, 1:-1] - f_0_padded[:-2, 1:-1, 1:-1]) / (2 * dk)
+    deriv_k_1 = (f_1_padded[2:, 1:-1, 1:-1] - f_1_padded[:-2, 1:-1, 1:-1]) / (2 * dk)
+    deriv_l_0 = (f_0_padded[1:-1, 2:, 1:-1] - f_0_padded[1:-1, :-2, 1:-1]) / (2 * dl)
+    deriv_l_1 = (f_1_padded[1:-1, 2:, 1:-1] - f_1_padded[1:-1, :-2, 1:-1]) / (2 * dl)
+
+    boundary_correction = False
+    if boundary_correction:
+        deriv_k_0[0, :, :]  = (-11*f_0[0, :, :] + 18*f_0[1, :, :] - 9*f_0[2, :, :] + 2*f_0[3, :, :]) / (6 * dk)
+        deriv_k_0[-1, :, :] = (11*f_0[-1, :, :] - 18*f_0[-2, :, :] + 9*f_0[-3, :, :] - 2*f_0[-4, :, :]) / (6 * dk)
+
+        deriv_k_1[0, :, :]  = (-11*f_1[0, :, :] + 18*f_1[1, :, :] - 9*f_1[2, :, :] + 2*f_1[3, :, :]) / (6 * dk)
+        deriv_k_1[-1, :, :] = (11*f_1[-1, :, :] - 18*f_1[-2, :, :] + 9*f_1[-3, :, :] - 2*f_1[-4, :, :]) / (6 * dk)
+
+        deriv_l_0[:, 0, :]  = (-11*f_0[:, 0, :] + 18*f_0[:, 1, :] - 9*f_0[:, 2, :] + 2*f_0[:, 3, :]) / (6 * dl)
+        deriv_l_0[:, -1, :] = ( 11*f_0[:, -1, :] - 18*f_0[:, -2, :] + 9*f_0[:, -3, :] - 2*f_0[:, -4, :]) / (6 * dl)
+
+        deriv_l_1[:, 0, :]  = (-11*f_1[:, 0, :] + 18*f_1[:, 1, :] - 9*f_1[:, 2, :] + 2*f_1[:, 3, :]) / (6 * dl)
+        deriv_l_1[:, -1, :] = ( 11*f_1[:, -1, :] - 18*f_1[:, -2, :] + 9*f_1[:, -3, :] - 2*f_1[:, -4, :]) / (6 * dl)
+
+
+    #required second derivatives
+    deriv2_k_0 = (f_0_padded[2:, 1:-1, 1:-1] - 2 * f_0_padded[1:-1, 1:-1, 1:-1] + f_0_padded[:-2, 1:-1, 1:-1]) / dk**2
+    deriv2_k_1 = (f_1_padded[2:, 1:-1, 1:-1] - 2 * f_1_padded[1:-1, 1:-1, 1:-1] + f_1_padded[:-2, 1:-1, 1:-1]) / dk**2
+    deriv2_l_0 = (f_0_padded[1:-1, 2:, 1:-1] - 2 * f_0_padded[1:-1, 1:-1, 1:-1] + f_0_padded[1:-1, :-2, 1:-1]) / dl**2
+    deriv2_l_1 = (f_1_padded[1:-1, 2:, 1:-1] - 2 * f_1_padded[1:-1, 1:-1, 1:-1] + f_1_padded[1:-1, :-2, 1:-1]) / dl**2
+
+    if boundary_correction:
+        deriv2_k_0[0, :, :]  = (35*f_0[0, :, :] - 104*f_0[1, :, :] + 114*f_0[2, :, :] - 56*f_0[3, :, :] + 11*f_0[4, :, :]) / (12 * dk**2)
+        deriv2_k_0[-1, :, :] = (35*f_0[-1, :, :] - 104*f_0[-2, :, :] + 114*f_0[-3, :, :] - 56*f_0[-4, :, :] + 11*f_0[-5, :, :]) / (12 * dk**2)
+        deriv2_k_1[0, :, :]  = (35*f_1[0, :, :] - 104*f_1[1, :, :] + 114*f_1[2, :, :] - 56*f_1[3, :, :] + 11*f_1[4, :, :]) / (12 * dk**2)
+        deriv2_k_1[-1, :, :] = (35*f_1[-1, :, :] - 104*f_1[-2, :, :] + 114*f_1[-3, :, :] - 56*f_1[-4, :, :] + 11*f_1[-5, :, :]) / (12 * dk**2)
+        deriv2_l_0[:, 0, :]  = (35*f_0[:, 0, :] - 104*f_0[:, 1, :] + 114*f_0[:, 2, :] - 56*f_0[:, 3, :] + 11*f_0[:, 4, :]) / (12 * dl**2)
+        deriv2_l_0[:, -1, :] = (35*f_0[:, -1, :] - 104*f_0[:, -2, :] + 114*f_0[:, -3, :] - 56*f_0[:, -4, :] + 11*f_0[:, -5, :]) / (12 * dl**2)
+        deriv2_l_1[:, 0, :]  = (35*f_1[:, 0, :] - 104*f_1[:, 1, :] + 114*f_1[:, 2, :] - 56*f_1[:, 3, :] + 11*f_1[:, 4, :]) / (12 * dl**2)
+        deriv2_l_1[:, -1, :] = (35*f_1[:, -1, :] - 104*f_1[:, -2, :] + 114*f_1[:, -3, :] - 56*f_1[:, -4, :] + 11*f_1[:, -5, :]) / (12 * dl**2)
+
+
+    # Compute second derivative in psi direction (axis=2) with periodic boundary
+    deriv2_psi_0 = xp.zeros_like(f_0)
+    deriv2_psi_1 = xp.zeros_like(f_1)
+
+    # Bulk (central difference)
+    deriv2_psi_0[:, :, 1:-1] = (f_0[:, :, 2:] - 2*f_0[:, :, 1:-1] + f_0[:, :, :-2]) / dpsi**2
+    deriv2_psi_1[:, :, 1:-1] = (f_1[:, :, 2:] - 2*f_1[:, :, 1:-1] + f_1[:, :, :-2]) / dpsi**2
+
+    # Periodic boundaries
+    deriv2_psi_0[:, :, 0]  = (f_0[:, :, 1] - 2*f_0[:, :, 0] + f_0[:, :, -2]) / dpsi**2
+    deriv2_psi_0[:, :, -1] = deriv2_psi_0[:, :, 0]
+
+    deriv2_psi_1[:, :, 0]  = (f_1[:, :, 1] - 2*f_1[:, :, 0] + f_1[:, :, -2]) / dpsi**2
+    deriv2_psi_1[:, :, -1] = deriv2_psi_1[:, :, 0]
+
+    
     # kinetic term
-    kin_term_1 = 1 / (omega) * (k1 * l1 + k2 * l2) * f_1
-    kin_term_0 = 1 / (omega) * (k1 * l1 + k2 * l2) * f_0
-
-    # Derivatives to include in the potential term
+    kin_term_1 = 2 / (omega) * (k * l * xp.cos(psi)) * f_1
+    kin_term_0 = 2 / (omega) * (k * l * xp.cos(psi)) * f_0
 
 
-    # ∂²f0/∂k1²
-    deriv2_k1_0 = (f_0_padded[2:, 1:-1, 1:-1, 1:-1] 
-            - 2 * f_0_padded[1:-1, 1:-1, 1:-1, 1:-1] 
-            + f_0_padded[:-2, 1:-1, 1:-1, 1:-1]) / dk1**2
-    
-    # ∂²f0/∂k2²
-    deriv2_k2_0 = (f_0_padded[1:-1, 2:, 1:-1, 1:-1] -
-            2 * f_0_padded[1:-1, 1:-1, 1:-1, 1:-1] 
-            + f_0_padded[1:-1, :-2, 1:-1, 1:-1]) / dk2**2
-    
-    # ∂²f1/∂k1²
-    deriv2_k1_1 = (f_1_padded[2:, 1:-1, 1:-1, 1:-1]
-            - 2 * f_1_padded[1:-1, 1:-1, 1:-1, 1:-1] 
-            + f_1_padded[:-2, 1:-1, 1:-1, 1:-1]) / dk1**2
-    
-    # ∂²f1/∂k2²
-    deriv2_k2_1 = (f_1_padded[1:-1, 2:, 1:-1, 1:-1] -
-            2 * f_1_padded[1:-1, 1:-1, 1:-1, 1:-1] 
-            + f_1_padded[1:-1, :-2, 1:-1, 1:-1]) / dk2**2
-
-    # ∂²f0/∂l1²  
-    deriv2_l1_0 = (f_0_padded[1:-1, 1:-1, 2:, 1:-1] - 
-            2 * f_0_padded[1:-1, 1:-1, 1:-1, 1:-1] 
-            + f_0_padded[1:-1, 1:-1, :-2, 1:-1]) / dl1**2
-
-    # ∂²f0/∂l2² 
-    deriv2_l2_0 = (f_0_padded[1:-1, 1:-1, 1:-1, 2:] - 
-            2 * f_0_padded[1:-1, 1:-1, 1:-1, 1:-1] 
-            + f_0_padded[1:-1, 1:-1, 1:-1, :-2]) / dl2**2
-    
-    
-    
-    #deriv_l1_0 = (f_0_padded[1:-1, 1:-1, 2:, 1:-1] - f_0_padded[1:-1, 1:-1, :-2, 1:-1]) / (2 * dl1)
-    #deriv_l2_0 = (f_0_padded[1:-1, 1:-1, 1:-1, 2:] - f_0_padded[1:-1, 1:-1, 1:-1, :-2]) / (2 * dl2)
-
-    
     if sys.Ncmode == "LNcFac" or sys.Ncmode == "LNc":
-
-        q_4 = sys.qhat * 0.25
         
-        V_term_00 = 0.5 * (deriv2_l1_0 + deriv2_l2_0 ) + deriv2_k1_0 + deriv2_k2_0
+        q_4 = sys.qhat * 0.25
+
+        
+        V_term_00 = 0.5 * (deriv2_k_0 + 1/k * deriv_k_0 + deriv2_l_0 
+                           + 1/(l + epsl) * deriv_l_0 + 1 / (l+epsl)**2 * deriv2_psi_0)
             
         g_z = sys.z**2 + (1 - sys.z)**2
-        V_term_11 = g_z  * (deriv2_k1_1 + deriv2_k2_1)
+        V_term_11 = g_z  * (deriv2_k_1 + deriv_k_1 * 1/(k))
 
         V_1 = V_term_11
 
         if sys.Ncmode == "LNc":
-            V_term_10 =  2 * sys.z * (1 - sys.z) * (deriv2_k1_0 + deriv2_k2_0)
+            V_term_10 =  2 * sys.z * (1 - sys.z) * (deriv2_k_0 + 1/k * deriv_k_0)
             V_1 += V_term_10
 
         
-        HF_0 =  kin_term_0 + 1j * q_4 * V_term_00 
-        HF_1 = kin_term_1 + 1j * q_4 * V_1 
+        HF_0 = kin_term_0 + 1j * q_4 * V_term_00 
+        HF_1 = (kin_term_1 + 1j * q_4 * V_1)
 
-    else:
+    elif sys.Ncmode == "FNc":
         Nc = 3
         CF = (Nc**2 - 1) / (2 * Nc)
-        fz =  sys.z * (1 - sys.z)
-
-        # ∂²f1/∂l1² 
-        deriv2_l1_1 = (f_1_padded[1:-1, 1:-1, 2:, 1:-1] - 
-                2 * f_1_padded[1:-1, 1:-1, 1:-1, 1:-1] 
-                + f_1_padded[1:-1, 1:-1, :-2, 1:-1]) / dl1**2
-        
-        # ∂²f1/∂l2² 
-        deriv2_l2_1 = (f_1_padded[1:-1, 1:-1, 1:-1, 2:] - 
-                2 * f_1_padded[1:-1, 1:-1, 1:-1, 1:-1] 
-                + f_1_padded[1:-1, 1:-1, 1:-1, :-2]) / dl2**2
 
         q_4_CF = 0.25 * sys.qhat/CF
 
-        V_term_00 = (CF * (0.5 * (deriv2_l1_0 + deriv2_l2_0) + 
-                                           2 * (deriv2_k1_0 + deriv2_k2_0)) 
-                              + 1/Nc * (deriv2_k1_0 + deriv2_k2_0 -
-                                         0.25 * (deriv2_l1_0 + deriv2_l1_0)))
+        fz =  sys.z * (1 - sys.z)
 
-        V_term01 = -1/Nc * (deriv2_k1_1 + deriv2_k2_1 
-                                      - 0.25 * (deriv2_l1_1 + deriv2_l2_1))
+        V_term_00 = (0.5 * CF * ((deriv2_k_0 + 1/k * deriv_k_0)
+                                  + (deriv2_l_0 + 1/(l + epsl) * deriv_l_0
+                                  + 1 / (l+epsl)**2 * deriv2_psi_0)
+                    ) 
+                              + 1/(2*Nc) * (deriv2_k_0 + 1/k * deriv_k_0
+                                            - (deriv2_l_0 + 1/(l + epsl) * deriv_l_0)
+                                         - 1 / (l+epsl)**2 * deriv2_psi_0))
+        
+        V_term01 = -1/(2*Nc) * (deriv2_k_1 + 1/k * deriv_k_1
+                                      - (deriv2_l_1 + 1/(l + epsl) * deriv_l_1)
+                                      - 1 / (l+epsl)**2 * deriv2_psi_1)
+        
+        V_term10 =  Nc * fz  * (deriv2_k_0 + 1/k * deriv_k_0)
 
-        V_term10 =  Nc * fz  * (deriv2_k1_0 + deriv2_k2_0 )
-
-        V_term11 =  (CF  - Nc * fz)  * (deriv2_k1_1 + deriv2_k2_1)
+        V_term11 =  (CF  - Nc * fz)  * (deriv2_k_1 + 1/k * deriv_k_1)
 
         HF_0 = kin_term_0 + 1j * q_4_CF *(V_term_00 + V_term01)
         HF_1 = kin_term_1 + 1j * q_4_CF * (V_term10 + V_term11)
-
+    
     if sys.optimization == "gpu":
-        HF = cp.array([HF_0, HF_1])
+        return cp.array([HF_0, HF_1])
     else:
-        HF = np.array([HF_0, HF_1])
+        return np.array([HF_0, HF_1])
 
-    return HF
+def Hamiltonian3D_qqg(sys, f):
+    """
+    Computes Hf.
+    This acts as M(partial_k, partial_l, partial_psi) on f.
+    Assumes f has shape (3, Nk, Nl, Npsi).
+    """
+
+    dk = sys.dk
+    dl = sys.dl
+    dpsi = sys.dpsi
+    k = sys.K[:, None, None]
+    l = sys.L[None, :, None]
+    psi = sys.psi[None, None, :]
+    epsl = dl  # to avoid division by zero
+
+    omega = sys.omega
+    f_0 = f[0]
+    f_1 = f[1]
+    f_2 = f[2]
+
+    # Second derivatives in momentum space (bulk only)
+
+    xp = cp if sys.optimization == "gpu" else np
+
+    # Pad both f_0 and f_1 with linear extrapolation
+
+    f_0_padded = xp.pad(f_0, ((1, 1), (1, 1), (1, 1)), mode='edge')  # Pad with ghost cells
+    f_1_padded = xp.pad(f_1, ((1, 1), (1, 1), (1, 1)), mode='edge')  # Pad with ghost cells
+    f_2_padded = xp.pad(f_2, ((1, 1), (1, 1), (1, 1)), mode='edge')  # Pad with ghost cells
+
+    # required first derivatives
+
+    deriv_k_0 = (f_0_padded[2:, 1:-1, 1:-1] - f_0_padded[:-2, 1:-1, 1:-1]) / (2 * dk)
+    deriv_k_1 = (f_1_padded[2:, 1:-1, 1:-1] - f_1_padded[:-2, 1:-1, 1:-1]) / (2 * dk)
+    deriv_k_2 = (f_2_padded [2:, 1:-1, 1:-1] - f_2_padded[:-2, 1:-1, 1:-1]) / (2 * dk)
+    deriv_l_0 = (f_0_padded[1:-1, 2:, 1:-1] - f_0_padded[1:-1, :-2, 1:-1]) / (2 * dl)
+    deriv_l_1 = (f_1_padded[1:-1, 2:, 1:-1] - f_1_padded[1:-1, :-2, 1:-1]) / (2 * dl)   
+    deriv_l_2 = (f_2_padded[1:-1, 2:, 1:-1] - f_2_padded[1:-1, :-2, 1:-1]) / (2 * dl)
+    
+    boundary_correction = False
+    # apply one-sideded boundary conditions 
+    if boundary_correction:
+        deriv_k_0[0, :, :]  = (-11*f_0[0, :, :] + 18*f_0[1, :, :] - 9*f_0[2, :, :] + 2*f_0[3, :, :]) / (6 * dk)
+        deriv_k_0[-1, :, :] = (11*f_0[-1, :, :] - 18*f_0[-2, :, :] + 9*f_0[-3, :, :] - 2*f_0[-4, :, :]) / (6 * dk)
+        deriv_k_1[0, :, :]  = (-11*f_1[0, :, :] + 18*f_1[1, :, :] - 9*f_1[2, :, :] + 2*f_1[3, :, :]) / (6 * dk)
+        deriv_k_1[-1, :, :] = (11*f_1[-1, :, :] - 18*f_1[-2, :, :] + 9*f_1[-3, :, :] - 2*f_1[-4, :, :]) / (6 * dk)
+        deriv_k_2[0, :, :]  = (-11*f_2[0, :, :] + 18*f_2[1, :, :] - 9*f_2[2, :, :] + 2*f_2[3, :, :]) / (6 * dk)
+        deriv_k_2[-1, :, :] = (11*f_2[-1, :, :] - 18*f_2[-2, :, :] + 9*f_2[-3, :, :] - 2*f_2[-4, :, :]) / (6 * dk)
+        deriv_l_0[:, 0, :]  = (-11*f_0[:, 0, :] + 18*f_0[:, 1, :] - 9*f_0[:, 2, :] + 2*f_0[:, 3, :]) / (6 * dl)
+        deriv_l_0[:, -1, :] = ( 11*f_0[:, -1, :] - 18*f_0[:, -2, :] + 9*f_0[:, -3, :] - 2*f_0[:, -4, :]) / (6 * dl)
+        deriv_l_1[:, 0, :]  = (-11*f_1[:, 0, :] + 18*f_1[:, 1, :] - 9*f_1[:, 2, :] + 2*f_1[:, 3, :]) / (6 * dl)
+        deriv_l_1[:, -1, :] = ( 11*f_1[:, -1, :] - 18*f_1[:, -2, :] + 9*f_1[:, -3, :] - 2*f_1[:, -4, :]) / (6 * dl)
+        deriv_l_2[:, 0, :]  = (-11*f_2[:, 0, :] + 18*f_2[:, 1, :] - 9*f_2[:, 2, :] + 2*f_2[:, 3, :]) / (6 * dl)
+        deriv_l_2[:, -1, :] = ( 11*f_2[:, -1, :] - 18*f_2[:, -2, :] + 9*f_2[:, -3, :] - 2*f_2[:, -4, :]) / (6 * dl)
+
+    #required second derivatives
+    deriv2_k_0 = (f_0_padded[2:, 1:-1, 1:-1] - 2 * f_0_padded[1:-1, 1:-1, 1:-1] + f_0_padded[:-2, 1:-1, 1:-1]) / dk**2
+    deriv2_k_1 = (f_1_padded[2:, 1:-1, 1:-1] - 2 * f_1_padded[1:-1, 1:-1, 1:-1] + f_1_padded[:-2, 1:-1, 1:-1]) / dk**2
+    deriv2_k_2 = (f_2_padded[2:, 1:-1, 1:-1] - 2 * f_2_padded[1:-1, 1:-1, 1:-1] + f_2_padded[:-2, 1:-1, 1:-1]) / dk**2
+    deriv2_l_0 = (f_0_padded[1:-1, 2:, 1:-1] - 2 * f_0_padded[1:-1, 1:-1, 1:-1] + f_0_padded[1:-1, :-2, 1:-1]) / dl**2
+    deriv2_l_1 = (f_1_padded[1:-1, 2:, 1:-1] - 2 * f_1_padded[1:-1, 1:-1, 1:-1] + f_1_padded[1:-1, :-2, 1:-1]) / dl**2
+    deriv2_l_2 = (f_2_padded[1:-1, 2:, 1:-1] - 2 * f_2_padded[1:-1, 1:-1, 1:-1] + f_2_padded[1:-1, :-2, 1:-1]) / dl**2
+
+    # apply one-sideded boundary conditions
+    if boundary_correction:
+        deriv2_k_0[0, :, :]  = (35*f_0[0, :, :] - 104*f_0[1, :, :] + 114*f_0[2, :, :] - 56*f_0[3, :, :] + 11*f_0[4, :, :]) / (12 * dk**2)
+        deriv2_k_0[-1, :, :] = (35*f_0[-1, :, :] - 104*f_0[-2, :, :] + 114*f_0[-3, :, :] - 56*f_0[-4, :, :] + 11*f_0[-5, :, :]) / (12 * dk**2)
+        deriv2_k_1[0, :, :]  = (35*f_1[0, :, :] - 104*f_1[1, :, :] + 114*f_1[2, :, :] - 56*f_1[3, :, :] + 11*f_1[4, :, :]) / (12 * dk**2)
+        deriv2_k_1[-1, :, :] = (35*f_1[-1, :, :] - 104*f_1[-2, :, :] + 114*f_1[-3, :, :] - 56*f_1[-4, :, :] + 11*f_1[-5, :, :]) / (12 * dk**2)
+        deriv2_k_2[0, :, :]  = (35*f_2[0, :, :] - 104*f_2[1, :, :] + 114*f_2[2, :, :] - 56*f_2[3, :, :] + 11*f_2[4, :, :]) / (12 * dk**2)
+        deriv2_k_2[-1, :, :] = (35*f_2[-1, :, :] - 104*f_2[-2, :, :] + 114*f_2[-3, :, :] - 56*f_2[-4, :, :] + 11*f_2[-5, :, :]) / (12 * dk**2)
+        deriv2_l_0[:, 0, :]  = (35*f_0[:, 0, :] - 104*f_0[:, 1, :] + 114*f_0[:, 2, :] - 56*f_0[:, 3, :] + 11*f_0[:, 4, :]) / (12 * dl**2)
+        deriv2_l_0[:, -1, :] = (35*f_0[:, -1, :] - 104*f_0[:, -2, :] + 114*f_0[:, -3, :] - 56*f_0[:, -4, :] + 11*f_0[:, -5, :]) / (12 * dl**2)
+        deriv2_l_1[:, 0, :]  = (35*f_1[:, 0, :] - 104*f_1[:, 1, :] + 114*f_1[:, 2, :] - 56*f_1[:, 3, :] + 11*f_1[:, 4, :]) / (12 * dl**2)
+        deriv2_l_1[:, -1, :] = (35*f_1[:, -1, :] - 104*f_1[:, -2, :] + 114*f_1[:, -3, :] - 56*f_1[:, -4, :] + 11*f_1[:, -5, :]) / (12 * dl**2)
+        deriv2_l_2[:, 0, :]  = (35*f_2[:, 0, :] - 104*f_2[:, 1, :] + 114*f_2[:, 2, :] - 56*f_2[:, 3, :] + 11*f_2[:, 4, :]) / (12 * dl**2)
+        deriv2_l_2[:, -1, :] = (35*f_2[:, -1, :] - 104*f_2[:, -2, :] + 114*f_2[:, -3, :] - 56*f_2[:, -4, :] + 11*f_2[:, -5, :]) / (12 * dl**2)
+    # ----------------------------
+
+    # Apply periodic boundary conditions along axis 2 (psi axis)
+    # Pad with wrap mode for periodicity
+    f_0_padded_psi = xp.pad(f_0, ((1, 1), (1, 1), (1, 1)), mode='wrap')
+    f_1_padded_psi = xp.pad(f_1, ((1, 1), (1, 1), (1, 1)), mode='wrap')
+    f_2_padded_psi = xp.pad(f_2, ((1, 1), (1, 1), (1, 1)), mode='wrap')
+
+    deriv2_psi_0 = (f_0_padded_psi[1:-1, 1:-1, 2:] - 2 * f_0_padded_psi[1:-1, 1:-1, 1:-1] + f_0_padded_psi[1:-1, 1:-1, :-2]) / dpsi**2
+    deriv2_psi_1 = (f_1_padded_psi[1:-1, 1:-1, 2:] - 2 * f_1_padded_psi[1:-1, 1:-1, 1:-1] + f_1_padded_psi[1:-1, 1:-1, :-2]) / dpsi**2
+    deriv2_psi_2 = (f_2_padded_psi[1:-1, 1:-1, 2:] - 2 * f_2_padded_psi[1:-1, 1:-1, 1:-1] + f_2_padded_psi[1:-1, 1:-1, :-2]) / dpsi**2
+
+    kin_term_1 = 2 / (omega) * (k * l * xp.cos(psi)) * f_1
+    kin_term_0 = 2 / (omega) * (k * l * xp.cos(psi)) * f_0
+    kin_term_2 = 2 / (omega) * (k * l * xp.cos(psi)) * f_2
+
+    if sys.Ncmode == "FNc":
+        Nc = 3
+        CF = (Nc**2 - 1) / (2 * Nc)
+
+        q_4_CF = 0.25 * sys.qhat/CF
 
 
-def V_eff_gamma_qq_LNc_par(sys, sig, sigp, dt):
+        V_term_00 = (
+            (
+             + 0.25 * Nc * (1 + 2 * sys.z**2)
+            ) * (deriv2_k_0 + 1/k * deriv_k_0)
 
-    if sig == sigp:
-        dt_2 = dt/2
+            + Nc * (deriv2_l_0 + 1/(l + epsl) * deriv_l_0 + 1/(l + epsl)**2 * deriv2_psi_0) * 0.25
+        ) #O(1)
+
+        #V_term01 = 0.0
+
+        V_term02 = (sys.z - 1) * sys.z * (deriv2_k_2 + 1/k * deriv_k_2)  #O(1/Nc²)
+
+
+        V_term10 =  (-sys.z + 1) * sys.z * (deriv2_k_0 + 1/k * deriv_k_0) #O(1)
+
+        V_term11 = (
+            -(((-1 + sys.z)**2) / (2 * Nc))
+            + 0.5 * Nc * (1 + sys.z * (-2 + 3 * sys.z))
+        ) * (deriv2_k_1 + 1/k * deriv_k_1)  #O(1)
+
+        #V_term12 = 0.0
+
+        V_term20 =  (sys.z - 1) * sys.z * (deriv2_k_0 + 1/k * deriv_k_0) # O(1/Nc)
+
+        V_term21 = (1/2 * Nc) * (
+            (-1 - 2 * (-1 + sys.z) * sys.z) * (deriv2_k_1 + 1/k * deriv_k_1)
+            + (deriv2_l_1 + 1/(l + epsl) * deriv_l_1 + 1/(l + epsl)**2 * deriv2_psi_1)
+        ) # O(1)
         
-        beta_t = sys.beta(sys.t)
-        beta_t12 = sys.beta(sys.t + dt_2)
-        beta_t1 = sys.beta(sys.t + dt)
-        debeta_t = sys.dbeta(sys.t)
-        debeta_t12 = sys.dbeta(sys.t + dt_2)
-        debeta_t1 = sys.dbeta(sys.t + dt)
+        V_term22 = (
+            (-(((-1 + sys.z)**2) / (2 * Nc)) + 0.25 * Nc * (1 - 4 * sys.z + 6 * sys.z**2)) * (deriv2_k_2 + 1/k * deriv_k_2)
+            + (Nc * (deriv2_l_2 + 1/(l + epsl) * deriv_l_2 + 1/(l + epsl)**2 * deriv2_psi_2)) * 0.25
+        ) # O(1/Nc)
+        
 
-        one_six = 1/6
+        HF_0 = kin_term_0 +  1j * q_4_CF *(V_term_00  + V_term02 * Nc**2 / (Nc**3 - 1))
+        HF_1 = kin_term_1 +  1j * q_4_CF * (V_term10 * (Nc**3 - 1)/(Nc**2 - 1) + V_term11)
+        HF_2 = kin_term_2 +  1j * q_4_CF * (V_term20 * (Nc**3 - 1)/ Nc**2 + V_term21 * (Nc**2 - 1)/Nc**2 + V_term22)
 
-        beta_eff = (beta_t + 4 * beta_t12 + beta_t1) * one_six
-        beta2_eff = (beta_t**2 + 4 * beta_t12**2 + beta_t1**2) * one_six
-        dbeta_eff = (debeta_t + 4 * debeta_t12 + debeta_t1) * one_six
+    elif sys.Ncmode == "LNc":
+        Nc = 3
+        CF = Nc/2
 
-        u_sqrd = sys.U1[:, None, None, None]**2 + sys.U2[None, :, None, None]**2
+        q_4_CF = 0.25 * sys.qhat/CF
 
-        V_ = sys.V_LargeNc_gamma_qq_par(sig, sigp)
 
-        ret_arr = 1j * V_ +  dbeta_eff * u_sqrd
-        ret_arr -= 2 / sys.omega * (1j * beta_eff - beta2_eff * u_sqrd)
+        V_term_00 = (
+            (
+            -((-1 + sys.z)**2) / (2 * Nc) + 0.25 * Nc * (1 + 2 * sys.z**2)
+            ) * (deriv2_k_0 + 1/k * deriv_k_0)
 
-    else: 
+            + Nc * (deriv2_l_0 + 1/(l + epsl) * deriv_l_0 + 1/(l + epsl)**2 * deriv2_psi_0) * 0.25
+        )
 
-        V_ = sys.V_LargeNc_gamma_qq_par(sig, sigp)
+        #V_term01 = 0.0
 
-        ret_arr = 1j*V_
+        V_term02 = 0.0
+
+
+        V_term10 =  (-sys.z + 1) * sys.z * (deriv2_k_0 + 1/k * deriv_k_0)
+
+        V_term11 = (
+            + 0.5 * Nc * (1 + sys.z * (-2 + 3 * sys.z))
+        ) * (deriv2_k_1 + 1/k * deriv_k_1)
+
+        #V_term12 = 0.0
+
+        V_term20 =  (sys.z - 1) * sys.z * (deriv2_k_0 + 1/k * deriv_k_0)
+
+        V_term21 = (1/2 * Nc) * (
+            (-1 - 2 * (-1 + sys.z) * sys.z) * (deriv2_k_1 + 1/k * deriv_k_1)
+            + (deriv2_l_1 + 1/(l + epsl) * deriv_l_1 + 1/(l + epsl)**2 * deriv2_psi_1)
+        )
+        
+        V_term22 = (
+            (-(((-1 + sys.z)**2) / (2 * Nc)) + 0.25 * Nc * (1 - 4 * sys.z + 6 * sys.z**2)) * (deriv2_k_2 + 1/k * deriv_k_2)
+            + (Nc * (deriv2_l_2 + 1/(l + epsl) * deriv_l_2 + 1/(l + epsl)**2 * deriv2_psi_2)) * 0.25
+        )
+        
+
+        HF_0 = kin_term_0 +  1j * q_4_CF *(V_term_00)
+        HF_1 = kin_term_1 +  1j * q_4_CF * (V_term10 * Nc + V_term11)
+        HF_2 = kin_term_2 
+
     
-    return ret_arr
+    elif sys.Ncmode == "LNcFac":
+
+        q_4 = sys.qhat * 0.25
+
+        g_z = sys.z**2 + (1 - sys.z)**2
+
+            
+        V_term_11 = (g_z  * (deriv2_k_1 + 1/k * deriv_k_1))
+
+
+        
+        HF_1 = kin_term_1 + 1j * q_4 * (V_term_11 )
+        HF_0 = kin_term_0 + 0.0 * HF_1 #irrelevant for large nc fac
+        HF_2 = kin_term_2 + 0.0 * HF_1
+
+
+    
+    return xp.array([HF_0, HF_1, HF_2])
+
+
+def Hamiltonian3D_ggg(sys, f):
+    #this one has 8 components
+    dk = sys.dk
+    dl = sys.dl
+    dpsi = sys.dpsi
+    k = sys.K[:, None, None]
+    l = sys.L[None, :, None]
+    psi = sys.psi[None, None, :]
+    epsl = l * .0
+    epsl[0] = dl  
+
+    omega = sys.omega
+    f_0 = f[0]
+    f_1 = f[1]
+    f_2 = f[2]
+    f_3 = f[3]
+    f_4 = f[4]
+    f_5 = f[5]
+    f_6 = f[6]
+    f_7 = f[7]
+
+    if sys.Ncmode == "FNc":
+        nsig = 8
+    elif sys.Ncmode == "LNc":
+        nsig = 2
+
+    # Second derivatives in momentum space (bulk only)
+    xp = cp if sys.optimization == "gpu" else np
+
+    # Pad all f_i with linear extrapolation
+    f_padded = [xp.pad(f_i, ((1, 1), (1, 1), (1, 1)), mode='edge') for f_i in [f_0, f_1, f_2, f_3, f_4, f_5, f_6, f_7]]
+
+    # required first derivatives
+    deriv_k = [(f_padded[i][2:, 1:-1, 1:-1] - f_padded[i][:-2, 1:-1, 1:-1]) / (2 * dk) for i in range(nsig)]
+    deriv_l = [(f_padded[i][1:-1, 2:, 1:-1] - f_padded[i][1:-1, :-2, 1:-1]) / (2 * dl) for i in range(nsig)]  
+
+    boundary_correction = False
+    # apply one-sideded boundary conditions 
+    if boundary_correction:
+        for i in range(nsig):
+            deriv_k[i][0, :, :]  = (-11*f_padded[i][1, :, :] + 18*f_padded[i][2, :, :] - 9*f_padded[i][3, :, :] + 2*f_padded[i][4, :, :]) / (6 * dk)
+            deriv_k[i][-1, :, :] = (11*f_padded[i][-2, :, :] - 18*f_padded[i][-3, :, :] + 9*f_padded[i][-4, :, :] - 2*f_padded[i][-5, :, :]) / (6 * dk)
+            deriv_l[i][:, 0, :]  = (-11*f_padded[i][:, 1, :] + 18*f_padded[i][:, 2, :] - 9*f_padded[i][:, 3, :] + 2*f_padded[i][:, 4, :]) / (6 * dl)
+            deriv_l[i][:, -1, :] = ( 11*f_padded[i][:, -2, :] - 18*f_padded[i][:, -3, :] + 9*f_padded[i][:, -4, :] - 2*f_padded[i][:, -5, :]) / (6 * dl)
+
+        #required second derivatives
+    deriv2_k = [(f_padded[i][2:, 1:-1, 1:-1] - 2 * f_padded[i][1:-1, 1:-1, 1:-1] + f_padded[i][:-2, 1:-1, 1:-1]) / dk**2 for i in range(nsig)]
+
+    deriv2_l = [(f_padded[i][1:-1, 2:, 1:-1] - 2 * f_padded[i][1:-1, 1:-1, 1:-1] + f_padded[i][1:-1, :-2, 1:-1]) / dl**2 for i in range(nsig)]
+
+    # apply one-sideded boundary conditions
+    if boundary_correction:
+        for i in range(nsig):
+            deriv2_k[i][0, :, :]  = (35*f_padded[i][1, :, :] - 104*f_padded[i][2, :, :] + 114*f_padded[i][3, :, :] - 56*f_padded[i][4, :, :] + 11*f_padded[i][5, :, :]) / (12 * dk**2)
+            deriv2_k[i][-1, :, :] = (35*f_padded[i][-2, :, :] - 104*f_padded[i][-3, :, :] + 114*f_padded[i][-4, :, :] - 56*f_padded[i][-5, :, :] + 11*f_padded[i][-6, :, :]) / (12 * dk**2)
+            deriv2_l[i][:, 0, :]  = (35*f_padded[i][:, 1, :] - 104*f_padded[i][:, 2, :] + 114*f_padded[i][:, 3, :] - 56*f_padded[i][:, 4, :] + 11*f_padded[i][:, 5, :]) / (12 * dl**2)
+            deriv2_l[i][:, -1, :] = (35*f_padded[i][:, -2, :] - 104*f_padded[i][:, -3, :] + 114*f_padded[i][:, -4, :] - 56*f_padded[i][:, -5, :] + 11*f_padded[i][:, -6, :]) / (12 * dl**2)
+
+    # ----------------------------
+
+    # Apply periodic boundary conditions along axis 2 (psi axis)
+    # Pad with wrap mode for periodicity
+    f_padded_psi = [xp.pad(f_i, ((1, 1), (1, 1), (1, 1)), mode='wrap') for f_i in [f_0, f_1, f_2, f_3, f_4, f_5, f_6, f_7]]
+
+    deriv2_psi = [(f_padded_psi[i][1:-1, 1:-1, 2:] - 2 * f_padded_psi[i][1:-1, 1:-1, 1:-1] + f_padded_psi[i][1:-1, 1:-1, :-2]) / dpsi**2 for i in range(nsig)]
+
+    kin_term = [2 / (omega) * (k * l * xp.cos(psi)) * f_padded[i][1:-1, 1:-1, 1:-1] for i in range(8)]
+    for i in range(nsig):
+        deriv2_psi[i][:, 0, :] = 0
+        deriv2_psi[i][:, -1, :] = 0
+
+    HF = []
+
+    if sys.Ncmode == "FNc":
+        Nc = 3
+        CA = Nc
+        q_4_CA = 0.25 * sys.qhat / CA
+        z = sys.z
+
+        C0Ncfac = Nc**2 * (Nc**2 - 1)
+        C1Ncfac = Nc * (Nc**2 - 1)
+        C2Ncfac = -Nc**2 * (Nc - 1)
+        C3Ncfac = Nc * (Nc**2 - 1)
+        C4Ncfac = Nc**2 * (4 * Nc - 3)
+        C5Ncfac = 2 * (Nc**2 - 1)
+        C6Ncfac = Nc**2
+        C7Ncfac =  Nc**2 * (Nc**2 - 1)
+
+        # #C0Ncfac = Nc**4 #Nc**4
+        # C2Ncfac = 1 #Nc**5
+        # C3Ncfac = 1 #Nc**5
+        # C4Ncfac = 1 #Nc**3
+        # C5Ncfac = 1 #Nc**5
+        # C6Ncfac = 1 #Nc**4
+        # C7Ncfac = 1 #Nc**2
+
+        
+        
+        # start from kinetic terms, then add FNc potential for component 0 as specified
+        HF = [kin_term[i] for i in range(8)]
+
+        V0 = (
+            # M00 term
+            Nc * (1 - 2 * z + 2 * z**2) * (deriv2_k[0] + 1/k * deriv_k[0]) #O(1)
+
+            # # M01 term
+            + ((1.0/4.0 + z - z**2) * (deriv2_k[1] + 1/k * deriv_k[1])
+                - 0.25 * (deriv2_l[1] + 1/(l + epsl) * deriv_l[1] + 1/(l + epsl)**2 * deriv2_psi[1])) * C1Ncfac/C0Ncfac # O(1/Nc²)
+
+            # # M02 term
+             + ((-0.5 + z - z**2) * (deriv2_k[2] + 1/k * deriv_k[2])
+                + 0.5 * (deriv2_l[2] + 1/(l + epsl) * deriv_l[2] + 1/(l + epsl)**2 * deriv2_psi[2])) * C2Ncfac/C0Ncfac #O(1/Nc²)
+            
+            # # M03 term
+             + (-0.75 * (deriv2_k[3] + 1/k * deriv_k[3])
+                + 0.75 * (deriv2_l[3] + 1/(l + epsl) * deriv_l[3] + 1/(l + epsl)**2 * deriv2_psi[3])) * C3Ncfac/C0Ncfac # O(1/Nc²)
+        )
+
+
+        V1 = (
+
+            # M10 term
+            0.25 * (deriv2_k[0] - deriv2_l[0] - 1/(l + epsl) * deriv_l[0] - 1/(l + epsl)**2 * deriv2_psi[0]) * C0Ncfac/C1Ncfac #O(1)
+
+            # M11 term
+            + Nc * (0.75 - z + z**2) * deriv2_k[1]  
+            + (Nc / 4.0) * (deriv2_l[1] + 1/(l + epsl) * deriv_l[1] + 1/(l + epsl)**2 * deriv2_psi[1]) #O(1)
+        )
+        
+
+        V2 = (
+            # M20 term
+            ((-0.75 + 4.0 * z - 4.0 * z**2) * (deriv2_k[0] + 1/k * deriv_k[0])
+             + 0.75 * (deriv2_l[0] + 1/(l + epsl) * deriv_l[0] + 1/(l + epsl)**2 * deriv2_psi[0])) * C0Ncfac/C2Ncfac #O(1)
+
+            # CM21 term
+            + ((0.75 * Nc) * (deriv2_k[1] + 1/k * deriv_k[1])
+               - 0.75 * Nc * (deriv2_l[1] + 1/(l + epsl) * deriv_l[1] + 1/(l + epsl)**2 * deriv2_psi[1])) * C1Ncfac/C2Ncfac #O(1)
+
+            # M24 term
+            + (Nc * (-0.25 + 2.0 * z - 2.0 * z**2) * (deriv2_k[4] + 1/k * deriv_k[4])
+               + 0.25 * Nc * (deriv2_l[4] + 1/(l + epsl) * deriv_l[4] + 1/(l + epsl)**2 * deriv2_psi[4])) * C4Ncfac/C2Ncfac
+
+            # M22 term
+            + (Nc * (-0.25 - z + z**2) * (deriv2_k[2] + 1/k * deriv_k[2])
+               + 1.25 * Nc * (deriv2_l[2] + 1/(l + epsl) * deriv_l[2] + 1/(l + epsl)**2 * deriv2_psi[2]))
+
+            # M23 term
+            + (-1.75 * Nc * (deriv2_k[3] + 1/k * deriv_k[3])
+               + 1.75 * Nc * (deriv2_l[3] + 1/(l + epsl) * deriv_l[3] + 1/(l + epsl)**2 * deriv2_psi[3])) * C3Ncfac/C2Ncfac
+
+            # M25 term
+            + (0.75 * Nc**2 * (deriv2_k[5] + 1/k * deriv_k[5])
+               - 0.75 * Nc**2 * (deriv2_l[5] + 1/(l + epsl) * deriv_l[5] + 1/(l + epsl)**2 * deriv2_psi[5])) * C5Ncfac/C2Ncfac
+        )
+
+
+        V3 = (
+            # C3 Nc d^2_k
+            C3Ncfac * Nc * (deriv2_k[3] + 1/k * deriv_k[3])
+
+            # - C2 Nc (-1 + z) z d^2_k
+            - C2Ncfac * Nc * (-1 + z) * z * (deriv2_k[2] + 1/k * deriv_k[2])
+
+            # + C4 Nc (-1 + z) z d^2_k
+            + C4Ncfac * Nc * (-1 + z) * z * (deriv2_k[4] + 1/k * deriv_k[4])
+
+            # + C5 Nc^2 (-1 + z) z d^2_k
+            + C5Ncfac * Nc**2 * (-1 + z) * z * (deriv2_k[5] + 1/k * deriv_k[5])
+
+            # + C0 ((1/4 - 2z + 2z^2) d^2_k - (1/4) d^2_l)
+            + C0Ncfac * ((0.25 - 2*z + 2*z**2) * (deriv2_k[0] + 1/k * deriv_k[0]) - 0.25 * (deriv2_l[0] + 1/(l + epsl) * deriv_l[0] + 1/(l + epsl)**2 * deriv2_psi[0]))
+
+            # + C1 (-(1/4) Nc d^2_k + (Nc/4) d^2_l)
+            + C1Ncfac * (-(0.25) * Nc * (deriv2_k[1] + 1/k * deriv_k[1]) + (Nc / 4.0) * (deriv2_l[1] + 1/(l + epsl) * deriv_l[1] + 1/(l + epsl)**2 * deriv2_psi[1]))
+
+            # + C6 (-(1/2) Nc^2 d^2_k + (1/2) Nc^2 d^2_l)
+            + C6Ncfac * (-(0.5) * Nc**2 * (deriv2_k[6] + 1/k * deriv_k[6]) + 0.5 * Nc**2 * (deriv2_l[6] + 1/(l + epsl) * deriv_l[6] + 1/(l + epsl)**2 * deriv2_psi[6]))
+        ) / C3Ncfac
+
+
+        V4 = (
+            # C0 term
+            C0Ncfac * (0.5 * (1 - 2*z)**2 * (deriv2_k[0] + 1/k * deriv_k[0]) - 0.5 * (deriv2_l[0] + 1/(l + epsl) * deriv_l[0] + 1/(l + epsl)**2 * deriv2_psi[0]))
+
+            # C7 term
+            + C7Ncfac * ((-0.5 + 4*z - 4*z**2) * (deriv2_k[7] + 1/k * deriv_k[7]) + 0.5 * (deriv2_l[7] + 1/(l + epsl) * deriv_l[7] + 1/(l + epsl)**2 * deriv2_psi[7]))
+
+            # C1 term
+            + C1Ncfac * (0.5 * Nc * (deriv2_k[1] + 1/k * deriv_k[1]) - 0.5 * Nc * (deriv2_l[1] + 1/(l + epsl) * deriv_l[1] + 1/(l + epsl)**2 * deriv2_psi[1]))
+
+            # C4 term
+            + C4Ncfac * (Nc * (0.75 - 2*z + 2*z**2) * (deriv2_k[4] + 1/k * deriv_k[4]) + 0.25 * Nc * (deriv2_l[4] + 1/(l + epsl) * deriv_l[4] + 1/(l + epsl)**2 * deriv2_psi[4]))
+
+            # C2 term
+            + C2Ncfac * (-0.5 * Nc * (deriv2_k[2] + 1/k * deriv_k[2]) + 0.5 * Nc * (deriv2_l[2] + 1/(l + epsl) * deriv_l[2] + 1/(l + epsl)**2 * deriv2_psi[2]))
+
+            # C3 term
+            + C3Ncfac * (-Nc * (deriv2_k[3] + 1/k * deriv_k[3]) + Nc * (deriv2_l[3] + 1/(l + epsl) * deriv_l[3] + 1/(l + epsl)**2 * deriv2_psi[3]))
+
+            # C5 term
+            + C5Ncfac * (0.5 * Nc**2 * (deriv2_k[5] + 1/k * deriv_k[5]) - 0.5 * Nc**2 * (deriv2_l[5] + 1/(l + epsl) * deriv_l[5] + 1/(l + epsl)**2 * deriv2_psi[5]))
+
+            # C6 term
+            + C6Ncfac * (Nc**2 * (0.5 - 4*z + 4*z**2) * (deriv2_k[6] + 1/k * deriv_k[6]) - 0.5 * Nc**2 * (deriv2_l[6] + 1/(l + epsl) * deriv_l[6] + 1/(l + epsl)**2 * deriv2_psi[6]))
+        ) / C4Ncfac
+
+
+        V5 = (
+            # C1 (d^2_k/4 - d^2_l/4)
+            (C1Ncfac / C5Ncfac) * (
+            0.25 * (deriv2_k[1] + 1/k * deriv_k[1]) - 0.25 * (deriv2_l[1] + 1/(l + epsl) * deriv_l[1] + 1/(l + epsl)**2 * deriv2_psi[1])
+            )
+            # C2 ((-(3/4) + 2z - 2z^2) d^2_k + (3/4) d^2_l)
+            + (C2Ncfac / C5Ncfac) * (
+            (-0.75 + 2*z - 2*z**2) * (deriv2_k[2] + 1/k * deriv_k[2]) + 0.75 * (deriv2_l[2] + 1/(l + epsl) * deriv_l[2] + 1/(l + epsl)**2 * deriv2_psi[2])
+            )
+            # C3 ((-1 + 2z - 2z^2) d^2_k + d^2_l)
+            + (C3Ncfac / C5Ncfac) * (
+            (-1 + 2*z - 2*z**2) * (deriv2_k[3] + 1/k * deriv_k[3]) + (deriv2_l[3] + 1/(l + epsl) * deriv_l[3] + 1/(l + epsl)**2 * deriv2_psi[3])
+            )
+            # C7 (-(d^2_k/(2Nc)) + d^2_l/(2Nc))
+            + (C7Ncfac / C5Ncfac) * (
+            (-1/(2*Nc)) * (deriv2_k[7] + 1/k * deriv_k[7]) + (1/(2*Nc)) * (deriv2_l[7] + 1/(l + epsl) * deriv_l[7] + 1/(l + epsl)**2 * deriv2_psi[7])
+            )
+            # C5 (Nc (5/4 - 3z + 3z^2) d^2_k - Nc/4 d^2_l)
+            + (
+            Nc * (5/4 - 3*z + 3*z**2) * (deriv2_k[5] + 1/k * deriv_k[5]) - (Nc/4) * (deriv2_l[5] + 1/(l + epsl) * deriv_l[5] + 1/(l + epsl)**2 * deriv2_psi[5])
+            )
+            # C6 (-(1/4) Nc d^2_k + (Nc/4) d^2_l)
+            + (
+            -0.25 * Nc * (deriv2_k[6] + 1/k * deriv_k[6]) + 0.25 * Nc * (deriv2_l[6] + 1/(l + epsl) * deriv_l[6] + 1/(l + epsl)**2 * deriv2_psi[6])
+            )
+        )
+
+
+        V6 = (
+            # C2 term: -C2Ncfac * (-1 + z) * z * d^2_k[2]
+            (-C2Ncfac/C6Ncfac * (-1 + z) * z) * (deriv2_k[2] + 1/k * deriv_k[2])
+
+            # C7 term: (2 * C7Ncfac * (-1 + z) * z / Nc) * d^2_k[7]
+            + (2 * C7Ncfac/C6Ncfac * (-1 + z) * z / Nc) * (deriv2_k[7] + 1/k * deriv_k[7])
+
+            # C5 term: C5Ncfac * Nc * (-1 + z) * z * d^2_k[5]
+            + C5Ncfac/C6Ncfac * Nc * (-1 + z) * z * (deriv2_k[5] + 1/k * deriv_k[5])
+
+            # C3 term: C3Ncfac * ((1/4 + z - z^2) d^2_k[3] - (1/4) d^2_l[3])
+            + C3Ncfac/C6Ncfac * (
+            (0.25 + z - z**2) * (deriv2_k[3] + 1/k * deriv_k[3])
+            - 0.25 * (deriv2_l[3] + 1/(l + epsl) * deriv_l[3] + 1/(l + epsl)**2 * deriv2_psi[3])
+            )
+
+            # C1 term: C1Ncfac * (-(1/4) d^2_k[1] + (1/4) d^2_l[1])
+            + C1Ncfac/C6Ncfac * (
+            -0.25 * (deriv2_k[1] + 1/k * deriv_k[1])
+            + 0.25 * (deriv2_l[1] + 1/(l + epsl) * deriv_l[1] + 1/(l + epsl)**2 * deriv2_psi[1])
+            )
+
+            # C6 term: C6Ncfac * (Nc (1/4 + z - z^2) d^2_k[6] + (3 Nc d^2_l[6])/4)
+            + C6Ncfac/C6Ncfac * (
+            Nc * (0.25 + z - z**2) * (deriv2_k[6] + 1/k * deriv_k[6])
+            + 0.75 * Nc * (deriv2_l[6] + 1/(l + epsl) * deriv_l[6] + 1/(l + epsl)**2 * deriv2_psi[6])
+            ) 
+        )
+
+        V7 = (
+            # C7 (1/2 Nc (1 - 2 z)^2 d^2_k[7] + (Nc d^2_l[7])/2)
+            0.5 * Nc * (1 - 2*z)**2 * (deriv2_k[7] + 1/k * deriv_k[7])
+            + 0.5 * Nc * (deriv2_l[7] + 1/(l + epsl) * deriv_l[7] + 1/(l + epsl)**2 * deriv2_psi[7])
+
+            # C2 (Nc^2 (-(1/4) + z - z^2) d^2_k[2] + 1/4 Nc^2 d^2_l[2])
+            + (Nc**2 * (-(1/4) + z - z**2) * (deriv2_k[2] + 1/k * deriv_k[2])
+            + 0.25 * Nc**2 * (deriv2_l[2] + 1/(l + epsl) * deriv_l[2] + 1/(l + epsl)**2 * deriv2_psi[2])) * C2Ncfac/C7Ncfac
+
+            # C3 (Nc^2 (-(1/4) + z - z^2) d^2_k[3] + 1/4 Nc^2 d^2_l[3])
+            + (Nc**2 * (-(1/4) + z - z**2) * (deriv2_k[3] + 1/k * deriv_k[3])
+            + 0.25 * Nc**2 * (deriv2_l[3] + 1/(l + epsl) * deriv_l[3] + 1/(l + epsl)**2 * deriv2_psi[3])) * C3Ncfac/C7Ncfac
+
+            # C5 (Nc^3 (1/4 - z + z^2) d^2_k[5] - 1/4 Nc^3 d^2_l[5])
+            + (Nc**3 * (1/4 - z + z**2) * (deriv2_k[5] + 1/k * deriv_k[5])
+            - 0.25 * Nc**3 * (deriv2_l[5] + 1/(l + epsl) * deriv_l[5] + 1/(l + epsl)**2 * deriv2_psi[5])) * C5Ncfac/C7Ncfac
+
+            # C6 (Nc^3 (-(1/4) + z - z^2) d^2_k[6] + 1/4 Nc^3 d^2_l[6])
+            + (Nc**3 * (-(1/4) + z - z**2) * (deriv2_k[6] + 1/k * deriv_k[6])
+            + 0.25 * Nc**3 * (deriv2_l[6] + 1/(l + epsl) * deriv_l[6] + 1/(l + epsl)**2 * deriv2_psi[6])) * C6Ncfac/C7Ncfac
+        )
+
+
+        HF[0] += 1j * q_4_CA * V0
+        HF[1] += 1j * q_4_CA * V1
+        HF[2] += 1j * q_4_CA * V2
+        HF[3] += 1j * q_4_CA * V3
+        HF[4] += 1j * q_4_CA * V4
+        HF[5] += 1j * q_4_CA * V5
+        HF[6] += 1j * q_4_CA * V6
+        HF[7] += 1j * q_4_CA * V7
+        
+        # return full 8-component HF
+        return xp.array(HF)
+
+    elif sys.Ncmode == "LNc":
+        Nc = 3
+        CA = Nc
+        q_4_CA = 0.25 * sys.qhat / CA
+        z = sys.z
+
+        C0Ncfac = Nc**2 * (Nc**2 - 1)
+        C1Ncfac = Nc * (Nc**2 - 1)
+        C2Ncfac = -Nc**2 * (Nc - 1)
+        C3Ncfac = Nc * (Nc**2 - 1)
+        C4Ncfac = Nc**2 * (4 * Nc - 3)
+        C5Ncfac = 2 * (Nc**2 - 1)
+        C6Ncfac = 1
+        C7Ncfac =  Nc**2 * (Nc**2 - 1)
+
+        # #C0Ncfac = Nc**4 #Nc**4
+        # C2Ncfac = 1 #Nc**5
+        # C3Ncfac = 1 #Nc**5
+        # C4Ncfac = 1 #Nc**3
+        # C5Ncfac = 1 #Nc**5
+        # C6Ncfac = 1 #Nc**4
+        # C7Ncfac = 1 #Nc**2
+
+        # start from kinetic terms, then add FNc potential for component 0 as specified
+        HF = [kin_term[i] for i in range(2)]
+
+        V0 = (
+            # M00 term
+            Nc * (1 - 2 * z + 2 * z**2) * (deriv2_k[0] + 1/k * deriv_k[0]))
 
 
 
-def apply_hamil(sis, f, ht):
+        V1 = (
+
+            # M10 term
+            0.25 * (deriv2_k[0] - deriv2_l[0] - 1/(l + epsl) * deriv_l[0] - 1/(l + epsl)**2 * deriv2_psi[0]) * C0Ncfac/C1Ncfac
+
+            # M11 term
+            + Nc * (0.75 - z + z**2) * deriv2_k[1]  
+            + (Nc / 4.0) * (deriv2_l[1] + 1/(l + epsl) * deriv_l[1] + 1/(l + epsl)**2 * deriv2_psi[1])
+        )
+
+        HF[0] += 1j * q_4_CA * V0
+        HF[1] += 1j * q_4_CA * V1
+        for i in range(2,8):
+            HF.append(0.0 * HF[1])  #irrelevant for large nc
+        
+        
+        return xp.array(HF)
+
+
+def apply_hamil_3D(sis, f):
 
     if sis.vertex == "gamma_qq":
-        if sis.Ncmode == "LNcFac":
+        Hf = Hamitlonian3D_gammaqq(sis, f)
 
-            Hf = np.zeros_like(f)
+    elif sis.vertex == "q_qg":
+        Hf = Hamiltonian3D_qqg(sis, f)
 
-            #Hf[0, 1:-1, 1:-1, 1:-1, 1:-1] = Kin_par(sis, f, 0, ht)
-            Hf[0] = Kin_par(sis, f, 0, ht)
-
-            V_ss = V_eff_gamma_qq_LNc_par(sis, 0, 0, ht)
-            Hf[0] += V_ss * f[0]
-            V_ss = V_eff_gamma_qq_LNc_par(sis, 0, 1, ht)
-            Hf[0] += V_ss * f[1]
-
-            Hf[1] = Kin_par(sis, f, 1, ht)
-
-            V_ss = V_eff_gamma_qq_LNc_par(sis, 1, 0, ht)
-            Hf[1] += V_ss * f[0]
-            V_ss = V_eff_gamma_qq_LNc_par(sis, 1, 1, ht)
-            Hf[1] += V_ss * f[1]
-
-            del V_ss
-
-        else:
-            raise TypeError
-
+    elif sis.vertex == "g_gg":
+        Hf = Hamiltonian3D_ggg(sis, f)
 
     else:
-        raise TypeError
-    
-    return Hf
-
-
-
-
-def apply_hamil_new_mom_par(sis, f):
-    if sis.vertex == "gamma_qq":
-      
-        Hf = Hamiltonian_new_momentum(sis, f)
-
-    else:
-        raise TypeError
+        raise TypeError ("Unknown vertex type specified.")
     
     return Hf
 
