@@ -30,10 +30,6 @@ def simulate3D(sist, ht, t_L, step_save=10):
 
     sis = sist
 
-    direc = "plot_images/"
-    if not os.path.exists(direc):
-        os.makedirs(direc)
-
     time_list = np.arange(1e-3, t_L, ht)
 
     lambF, gamma0, gamma1 = faber_params3D(sist)
@@ -238,6 +234,7 @@ def simulate3D(sist, ht, t_L, step_save=10):
                 raise ValueError("NaN detected in nFsol at t = {}".format(sis.t))
 
             sis.increase_t(ht)
+            cont += 1
 
     print("Final time = ", round(sis.t, 3))
     return sis
