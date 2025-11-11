@@ -91,10 +91,16 @@ def Hamitlonian3D_gammaqq(sys, f):
     kin_term_0 = 2 / (omega) * (k * l * xp.cos(psi)) * f_0
 
 
-    if sys.Ncmode == "LNcFac" or sys.Ncmode == "LNc":
+    if sys.Ncmode == "LNcFac" or sys.Ncmode == "LNc" or sys.NcMode == "LeadNc":
         
-        q_4 = sys.qhat * 0.25
 
+        CF = 3/2
+        if sys.Ncmode == "LeadNc":
+            CF = (3**2 - 1) / (2 * 3)
+
+
+        q_4 = sys.qtilde * 0.25 
+        
         
         V_term_00 = 0.5 * (deriv2_k_0 + 1/k * deriv_k_0 + deriv2_l_0 
                            + 1/(l + epsl) * deriv_l_0 + 1 / (l+epsl)**2 * deriv2_psi_0)
@@ -109,21 +115,21 @@ def Hamitlonian3D_gammaqq(sys, f):
             V_1 += V_term_10
 
         
-        HF_0 = kin_term_0 + 1j * q_4 * V_term_00 
-        HF_1 = (kin_term_1 + 1j * q_4 * V_1)
+        HF_0 = kin_term_0 + 1j * q_4 * CF * V_term_00 
+        HF_1 = kin_term_1 + 1j * q_4 * CF * V_1
 
     elif sys.Ncmode == "FNc":
         Nc = 3
         CF = (Nc**2 - 1) / (2 * Nc)
 
-        q_4_CF = 0.25 * sys.qhat/CF
+        q_4 = 0.25 * sys.qtilde
 
         fz =  sys.z * (1 - sys.z)
 
         V_term_00 = (0.5 * CF * ((deriv2_k_0 + 1/k * deriv_k_0)
                                   + (deriv2_l_0 + 1/(l + epsl) * deriv_l_0
-                                  + 1 / (l+epsl)**2 * deriv2_psi_0)
-                    ) 
+                                  + 1 / (l+epsl)**2 * deriv2_psi_0))
+                                   
                               + 1/(2*Nc) * (deriv2_k_0 + 1/k * deriv_k_0
                                             - (deriv2_l_0 + 1/(l + epsl) * deriv_l_0)
                                          - 1 / (l+epsl)**2 * deriv2_psi_0))
@@ -136,13 +142,14 @@ def Hamitlonian3D_gammaqq(sys, f):
 
         V_term11 =  (CF  - Nc * fz)  * (deriv2_k_1 + 1/k * deriv_k_1)
 
-        HF_0 = kin_term_0 + 1j * q_4_CF *(V_term_00 + V_term01)
-        HF_1 = kin_term_1 + 1j * q_4_CF * (V_term10 + V_term11)
+        HF_0 = kin_term_0 + 1j * q_4 *(V_term_00 + V_term01)
+        HF_1 = kin_term_1 + 1j * q_4 * (V_term10 + V_term11)
     
     if sys.optimization == "gpu":
         return cp.array([HF_0, HF_1])
     else:
         return np.array([HF_0, HF_1])
+
 
 def Hamiltonian3D_qqg(sys, f):
     """
@@ -239,9 +246,8 @@ def Hamiltonian3D_qqg(sys, f):
 
     if sys.Ncmode == "FNc":
         Nc = 3
-        CF = (Nc**2 - 1) / (2 * Nc)
-
-        q_4_CF = 0.25 * sys.qhat/CF
+        
+        q_4 = 0.25 * sys.qtilde
 
 
         V_term_00 = (
@@ -279,15 +285,41 @@ def Hamiltonian3D_qqg(sys, f):
         ) # O(1/Nc)
         
 
-        HF_0 = kin_term_0 +  1j * q_4_CF *(V_term_00  + V_term02 * Nc**2 / (Nc**3 - 1))
-        HF_1 = kin_term_1 +  1j * q_4_CF * (V_term10 * (Nc**3 - 1)/(Nc**2 - 1) + V_term11)
-        HF_2 = kin_term_2 +  1j * q_4_CF * (V_term20 * (Nc**3 - 1)/ Nc**2 + V_term21 * (Nc**2 - 1)/Nc**2 + V_term22)
+        HF_0 = kin_term_0 +  1j * q_4 *(V_term_00  + V_term02 * Nc**2 / (Nc**3 - 1))
+        HF_1 = kin_term_1 +  1j * q_4 * (V_term10 * (Nc**3 - 1)/(Nc**2 - 1) + V_term11)
+        HF_2 = kin_term_2 +  1j * q_4 * (V_term20 * (Nc**3 - 1)/ Nc**2 + V_term21 * (Nc**2 - 1)/Nc**2 + V_term22)
+
+
+    elif sys.Ncmode == "LeadNc":
+        Nc = 3
+        q_4 = 0.25 * sys.qtilde
+
+        V_term_00 = (
+            (
+             + 0.25 * Nc * (1 + 2 * sys.z**2)
+            ) * (deriv2_k_0 + 1/k * deriv_k_0)
+
+            + Nc * (deriv2_l_0 + 1/(l + epsl) * deriv_l_0 + 1/(l + epsl)**2 * deriv2_psi_0) * 0.25
+        ) #O(1)
+
+        
+
+        V_term10 =  (-sys.z + 1) * sys.z * (deriv2_k_0 + 1/k * deriv_k_0) #O(1)
+
+        V_term11 = (-(((-1 + sys.z)**2) / (2 * Nc)) + 0.5 * Nc * (1 + sys.z * (-2 + 3 * sys.z))) \
+                    * (deriv2_k_1 + 1/k * deriv_k_1)  #O(1)
+
+
+
+        HF_0 = kin_term_0 + 1j * q_4 *(V_term_00)
+        HF_1 = kin_term_1 + 1j * q_4 * (V_term10 * (Nc**3 - 1)/(Nc**2 - 1) + V_term11)
+        HF_2 = kin_term_2 + 0.0 * HF_1
+
 
     elif sys.Ncmode == "LNc":
         Nc = 3
-        CF = Nc/2
+        q_4 = 0.25 * sys.qtilde
 
-        q_4_CF = 0.25 * sys.qhat/CF
 
 
         V_term_00 = (
@@ -324,24 +356,23 @@ def Hamiltonian3D_qqg(sys, f):
         )
         
 
-        HF_0 = kin_term_0 +  1j * q_4_CF *(V_term_00)
-        HF_1 = kin_term_1 +  1j * q_4_CF * (V_term10 * Nc + V_term11)
+        HF_0 = kin_term_0 +  1j * q_4 *(V_term_00)
+        HF_1 = kin_term_1 +  1j * q_4 * (V_term10 * Nc + V_term11)
         HF_2 = kin_term_2 
 
     
     elif sys.Ncmode == "LNcFac":
 
-        q_4 = sys.qhat * 0.25
-
-        g_z = sys.z**2 + (1 - sys.z)**2
-
+        Nc = 3
+        q_4 = sys.qtilde * 0.25
+        g_z = 1 + sys.z * (-2 + 3 * sys.z)
             
-        V_term_11 = (g_z  * (deriv2_k_1 + 1/k * deriv_k_1))
+        V_term_11 = Nc/2 * (g_z  * (deriv2_k_1 + 1/k * deriv_k_1))
 
 
         
-        HF_1 = kin_term_1 + 1j * q_4 * (V_term_11 )
-        HF_0 = kin_term_0 + 0.0 * HF_1 #irrelevant for large nc fac
+        HF_1 = kin_term_1 + 1j * q_4 * (V_term_11)
+        HF_0 = kin_term_0 + 0.0 * HF_1 
         HF_2 = kin_term_2 + 0.0 * HF_1
 
 
@@ -357,8 +388,7 @@ def Hamiltonian3D_ggg(sys, f):
     k = sys.K[:, None, None]
     l = sys.L[None, :, None]
     psi = sys.psi[None, None, :]
-    epsl = l * .0
-    epsl[0] = dl  
+    epsl = dl  
 
     omega = sys.omega
     f_0 = f[0]
@@ -424,8 +454,7 @@ def Hamiltonian3D_ggg(sys, f):
 
     if sys.Ncmode == "FNc":
         Nc = 3
-        CA = Nc
-        q_4_CA = 0.25 * sys.qhat / CA
+        q_4 = 0.25 * sys.qtilde 
         z = sys.z
 
         C0Ncfac = Nc**2 * (Nc**2 - 1)
@@ -452,30 +481,30 @@ def Hamiltonian3D_ggg(sys, f):
 
         V0 = (
             # M00 term
-            Nc * (1 - 2 * z + 2 * z**2) * (deriv2_k[0] + 1/k * deriv_k[0]) #O(1)
+            Nc * (1 - 2 * z + 2 * z**2) * (deriv2_k[0] + 1/k * deriv_k[0]) #O(Nc)
 
             # # M01 term
             + ((1.0/4.0 + z - z**2) * (deriv2_k[1] + 1/k * deriv_k[1])
-                - 0.25 * (deriv2_l[1] + 1/(l + epsl) * deriv_l[1] + 1/(l + epsl)**2 * deriv2_psi[1])) * C1Ncfac/C0Ncfac # O(1/Nc²)
+                - 0.25 * (deriv2_l[1] + 1/(l + epsl) * deriv_l[1] + 1/(l + epsl)**2 * deriv2_psi[1])) * C1Ncfac/C0Ncfac # O(1/Nc)
 
             # # M02 term
              + ((-0.5 + z - z**2) * (deriv2_k[2] + 1/k * deriv_k[2])
-                + 0.5 * (deriv2_l[2] + 1/(l + epsl) * deriv_l[2] + 1/(l + epsl)**2 * deriv2_psi[2])) * C2Ncfac/C0Ncfac #O(1/Nc²)
+                + 0.5 * (deriv2_l[2] + 1/(l + epsl) * deriv_l[2] + 1/(l + epsl)**2 * deriv2_psi[2])) * C2Ncfac/C0Ncfac #O(1/Nc)
             
             # # M03 term
              + (-0.75 * (deriv2_k[3] + 1/k * deriv_k[3])
-                + 0.75 * (deriv2_l[3] + 1/(l + epsl) * deriv_l[3] + 1/(l + epsl)**2 * deriv2_psi[3])) * C3Ncfac/C0Ncfac # O(1/Nc²)
+                + 0.75 * (deriv2_l[3] + 1/(l + epsl) * deriv_l[3] + 1/(l + epsl)**2 * deriv2_psi[3])) * C3Ncfac/C0Ncfac # O(1/Nc)
         )
 
 
         V1 = (
 
             # M10 term
-            0.25 * (deriv2_k[0] - deriv2_l[0] - 1/(l + epsl) * deriv_l[0] - 1/(l + epsl)**2 * deriv2_psi[0]) * C0Ncfac/C1Ncfac #O(1)
+            0.25 * (deriv2_k[0] - deriv2_l[0] - 1/(l + epsl) * deriv_l[0] - 1/(l + epsl)**2 * deriv2_psi[0]) * C0Ncfac/C1Ncfac #O(Nc)
 
             # M11 term
             + Nc * (0.75 - z + z**2) * deriv2_k[1]  
-            + (Nc / 4.0) * (deriv2_l[1] + 1/(l + epsl) * deriv_l[1] + 1/(l + epsl)**2 * deriv2_psi[1]) #O(1)
+            + (Nc / 4.0) * (deriv2_l[1] + 1/(l + epsl) * deriv_l[1] + 1/(l + epsl)**2 * deriv2_psi[1]) #O(Nc)
         )
         
 
@@ -637,32 +666,35 @@ def Hamiltonian3D_ggg(sys, f):
         )
 
 
-        HF[0] += 1j * q_4_CA * V0
-        HF[1] += 1j * q_4_CA * V1
-        HF[2] += 1j * q_4_CA * V2
-        HF[3] += 1j * q_4_CA * V3
-        HF[4] += 1j * q_4_CA * V4
-        HF[5] += 1j * q_4_CA * V5
-        HF[6] += 1j * q_4_CA * V6
-        HF[7] += 1j * q_4_CA * V7
+        HF[0] += 1j * q_4 * V0
+        HF[1] += 1j * q_4 * V1
+        HF[2] += 1j * q_4 * V2
+        HF[3] += 1j * q_4 * V3
+        HF[4] += 1j * q_4 * V4
+        HF[5] += 1j * q_4 * V5
+        HF[6] += 1j * q_4 * V6
+        HF[7] += 1j * q_4 * V7
         
         # return full 8-component HF
         return xp.array(HF)
 
-    elif sys.Ncmode == "LNc":
+    elif sys.Ncmode == "LNc" or sys.Ncmode == "LeadNc":
         Nc = 3
-        CA = Nc
-        q_4_CA = 0.25 * sys.qhat / CA
+        q_4 = 0.25 * sys.qtilde
         z = sys.z
 
-        C0Ncfac = Nc**2 * (Nc**2 - 1)
-        C1Ncfac = Nc * (Nc**2 - 1)
-        C2Ncfac = -Nc**2 * (Nc - 1)
-        C3Ncfac = Nc * (Nc**2 - 1)
-        C4Ncfac = Nc**2 * (4 * Nc - 3)
-        C5Ncfac = 2 * (Nc**2 - 1)
-        C6Ncfac = 1
-        C7Ncfac =  Nc**2 * (Nc**2 - 1)
+        C0Ncfac = Nc**4
+        C1Ncfac = Nc**3
+        if sys.Ncmode == "LeadNc":
+            C0Ncfac = Nc**2 * (Nc**2 - 1)
+            C1Ncfac = Nc * (Nc**2 - 1)
+        
+        # C2Ncfac = -Nc**2 * (Nc - 1)
+        # C3Ncfac = Nc * (Nc**2 - 1)
+        # C4Ncfac = Nc**2 * (4 * Nc - 3)
+        # C5Ncfac = 2 * (Nc**2 - 1)
+        # C6Ncfac = 1
+        # C7Ncfac =  Nc**2 * (Nc**2 - 1)
 
         # #C0Ncfac = Nc**4 #Nc**4
         # C2Ncfac = 1 #Nc**5
@@ -679,8 +711,6 @@ def Hamiltonian3D_ggg(sys, f):
             # M00 term
             Nc * (1 - 2 * z + 2 * z**2) * (deriv2_k[0] + 1/k * deriv_k[0]))
 
-
-
         V1 = (
 
             # M10 term
@@ -691,8 +721,8 @@ def Hamiltonian3D_ggg(sys, f):
             + (Nc / 4.0) * (deriv2_l[1] + 1/(l + epsl) * deriv_l[1] + 1/(l + epsl)**2 * deriv2_psi[1])
         )
 
-        HF[0] += 1j * q_4_CA * V0
-        HF[1] += 1j * q_4_CA * V1
+        HF[0] += 1j * q_4 * V0
+        HF[1] += 1j * q_4 * V1
         for i in range(2,8):
             HF.append(0.0 * HF[1])  #irrelevant for large nc
         

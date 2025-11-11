@@ -14,7 +14,7 @@ class physys3D:
     prec: precision type (default float32, better for gpu)
     """
     
-    def __init__(self, E, z, qF, Lk, Ll, Ncmode = "LNcFac", vertex = "gamma_qq", optimization = "gpu", prec = np.float64):
+    def __init__(self, E, z, qtilde, Lk, Ll, Ncmode = "LNcFac", vertex = "gamma_qq", optimization = "gpu", prec = np.float64):
 
         #float precision and optimization type
         self.prec = prec
@@ -24,7 +24,7 @@ class physys3D:
         fm = prec(5.067)
         self.fm = fm
         self.E = prec(E * fm)
-        self.qhat = prec(qF * fm**2)
+        self.qtilde = prec(qtilde * fm**2)
         self.z = z
         self.omega = prec(self.E * z * (1 - z))
 
@@ -37,20 +37,36 @@ class physys3D:
         self.t = 1e-8 #initial time
         
         if self.vertex == "gamma_qq":
-            self.Omega = (1 - 1j)/2 * prec(np.sqrt(self.qhat / self.omega))
+            if self.Ncmode == "LNc" or "LNcFac":
+                CF = 3/2 #now we use this for the computation of qab
+            else:
+                CF = (3**2 - 1) / (2 * 3)
+            qab = self.qtilde * CF
+            self.Omega = (1 - 1j)/2 * prec(np.sqrt(qab / self.omega))
+
 
         elif self.vertex == "q_qg":
             Nc = 3
-            CF = (Nc**2 - 1) / (2 * Nc)
             CA = Nc
-            qab = 0.5 * ((CA / CF) * (z) + (1-z)**2) * self.qhat
+            CF = (Nc**2 - 1) / (2 * Nc)
+            if self.Ncmode == "LNc" or self.Ncmode == "LNcFac":
+                CF = 3/2
+                
+            qab = 0.5 * ((CA) * (z) + CF * (1-z)**2) * self.qtilde
             
             self.Omega = (1 - 1j)/2 * prec(np.sqrt(qab / self.omega))
 
+
         elif self.vertex == "g_gg":
-            qab = (1 - z + z**2) * self.qhat
+            Nc = 3
+            CA = Nc
+            CF = (Nc**2 - 1) / (2 * Nc)
+
+            qab = (1 - z + z**2) * self.qtilde * CA 
             
             self.Omega = (1 - 1j)/2 * prec(np.sqrt(qab / self.omega))
+
+
 
         self.optimization = optimization
         self.Nk = None

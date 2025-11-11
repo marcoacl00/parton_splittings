@@ -8,7 +8,7 @@ def main():
     start_time = time.time()  
 
     
-    sis = physys3D(E, z, qhat, Lk, Ll, Ncmode=NcMode, optimization="gpu", vertex=vertex) #simulation with GPU
+    sis = physys3D(E, z, qtilde, Lk, Ll, Ncmode=NcMode, optimization="gpu", vertex=vertex) #simulation with GPU
 
 
     sis.set_dim(Nk, Nl, Npsi)   #Grid dimensions
@@ -21,8 +21,8 @@ def main():
     if not os.path.exists(dir):
         os.makedirs(dir)
 
-    file_name = "E={}_z={}_qhat={}_Lk={}_Ll={}_Nk={}_Nl={}_Npsi={}_L={}_NcMode={}_vertex={}.npy".format(
-        E, z, qhat, Lk, Ll, Nk, Nl, Npsi, L_medium, NcMode, vertex
+    file_name = "E={}_z={}_qtilde={}_Lk={}_Ll={}_Nk={}_Nl={}_Npsi={}_L={}_NcMode={}_vertex={}.npy".format(
+        E, z, qtilde, Lk, Ll, Nk, Nl, Npsi, L_medium, NcMode, vertex
     )
 
     end_time = time.time() 
@@ -48,7 +48,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run parton splitting simulation")
     parser.add_argument("--E", type=float, default=100, help="Energy in GeV")
     parser.add_argument("--z", type=float, default=0.1, help="Momentum fraction")
-    parser.add_argument("--qhat", type=float, default=1.5, help="qhat in GeV^2/fm")
+    parser.add_argument("--qtilde", type=float, default=1.5, help="qtilde in GeV^2/fm")
     parser.add_argument("--Lk", type=float, help="Lk value (default: 0.6*E)")
     parser.add_argument("--Ll", type=float, help="Ll value (default: 0.1*E)")
     parser.add_argument("--Nk", type=int, default=70, help="Nk1 grid size")
@@ -63,7 +63,7 @@ if __name__ == "__main__":
     # Set parameters from command line or defaults
     E = args.E
     z = args.z
-    qhat = args.qhat
+    qtilde = args.qtilde
     Lk = args.Lk 
     Ll = args.Ll 
     Nk = args.Nk
@@ -75,6 +75,6 @@ if __name__ == "__main__":
     vertex = args.vertex
 
     # Print parameters for debugging
-    print(f"Parameters: E={E}, z={z}, qhat={qhat}, Lk={Lk}, Ll={Ll}, Nk={Nk}, Nl={Nl}, Npsi={Npsi}, L_medium={L_medium}, ht={ht}, NcMode={NcMode}, vertex={args.vertex}")
+    print(f"Parameters: E={E}, z={z}, qtilde={qtilde}, Lk={Lk}, Ll={Ll}, Nk={Nk}, Nl={Nl}, Npsi={Npsi}, L_medium={L_medium}, ht={ht}, NcMode={NcMode}, vertex={args.vertex}")
 
     main()

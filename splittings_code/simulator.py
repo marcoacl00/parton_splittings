@@ -30,6 +30,7 @@ def simulate3D(sist, ht, t_L, step_save=10):
 
     sis = sist
 
+
     time_list = np.arange(1e-3, t_L, ht)
 
     lambF, gamma0, gamma1 = faber_params3D(sist)
@@ -90,13 +91,13 @@ def simulate3D(sist, ht, t_L, step_save=10):
                 if not os.path.exists(save_dir):
                     os.makedirs(save_dir)
 
-                # Save F_med_ii with E, qhat, and z in the filename
+                # Save F_med_ii with E, qtilde, and z in the filename
                 E_val = sis.E/sis.fm
-                qhat_val = sis.qhat/sis.fm**2
+                qtilde_val = sis.qtilde/sis.fm**2
                 z_val = sis.z
                 Lk = sis.Lk
 
-                fname = f"F_med_ii_E={round(E_val, 4)}GeV_qhat={round(qhat_val, 4)}GeV²_fm_z={z_val}_t{round(sis.t, 4)}_Lk={Lk}GeV⁻¹.npy"
+                fname = f"F_med_ii_E={round(E_val, 4)}GeV_qtilde={round(qtilde_val, 4)}GeV²_fm_z={z_val}_t{round(sis.t, 4)}_Lk={Lk}GeV⁻¹.npy"
                 
                 np.save(save_dir + fname, F_med_ii)
 
@@ -153,13 +154,13 @@ def simulate3D(sist, ht, t_L, step_save=10):
                 if not os.path.exists(save_dir):
                     os.makedirs(save_dir)
 
-                # Save F_med_qq with E, qhat, and z in the filename
+                # Save F_med_qq with E, qtilde, and z in the filename
                 E_val = sis.E/sis.fm
-                qhat_val = sis.qhat/sis.fm**2
+                qtilde_val = sis.qtilde/sis.fm**2
                 z_val = sis.z
                 Lk = sis.Lk
 
-                fname = f"F_med_qq_E={round(E_val, 4)}GeV_qhat={round(qhat_val, 4)}GeV²_fm_z={z_val}_t{round(sis.t, 4)}_Lk={Lk}GeV⁻¹.npy"
+                fname = f"F_med_qq_E={round(E_val, 4)}GeV_qtilde={round(qtilde_val, 4)}GeV²_fm_z={z_val}_t{round(sis.t, 4)}_Lk={Lk}GeV⁻¹.npy"
                 
                 np.save(save_dir + fname, F_med_qq)
 
@@ -217,13 +218,13 @@ def simulate3D(sist, ht, t_L, step_save=10):
                 if not os.path.exists(save_dir):
                     os.makedirs(save_dir)
 
-                # Save F_med_gg with E, qhat, and z in the filename
+                # Save F_med_gg with E, qtilde, and z in the filename
                 E_val = sis.E/sis.fm
-                qhat_val = sis.qhat/sis.fm**2
+                qtilde_val = sis.qtilde/sis.fm**2
                 z_val = sis.z
                 Lk = sis.Lk
 
-                fname = f"F_med_gg_E={round(E_val, 4)}GeV_qhat={round(qhat_val, 4)}GeV²_fm_z={z_val}_t{round(sis.t, 4)}_Lk={Lk}GeV⁻¹.npy"
+                fname = f"F_med_gg_E={round(E_val, 4)}GeV_qtilde={round(qtilde_val, 4)}GeV²_fm_z={z_val}_t{round(sis.t, 4)}_Lk={Lk}GeV⁻¹.npy"
                 
                 np.save(save_dir + fname, F_med_gg)
 

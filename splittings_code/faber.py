@@ -9,7 +9,7 @@ from tqdm import tqdm
 def faber_params3D(sys):
 
     #estimate spectrum of hamiltonian (effective)
-    qF = sys.qhat
+    qtilde = sys.qtilde
     dk = sys.dk
     dl = sys.dl
     dpsi = sys.dpsi
@@ -23,13 +23,13 @@ def faber_params3D(sys):
 
     #Minimum real eigenvalue
 
-    lam_re_min = -2 * Lk * Ll / (omega) -  qF / 4 * 1/dl**2 - qF / 4 * 1/dk**2
+    lam_re_min = -2 * Lk * Ll / (omega) -  qtilde / 4 * 1/dl**2 - 3 * qtilde / 4 * 1/dk**2
 
     
     #Maximum imag eigenvalue
     d_d2_eig = - 8 * (1/dk**2) - 8 * (1/dl**2) - 4/dl**2 * 1/dpsi**2
 
-    lam_im_min= qF / 4 * (d_d2_eig)
+    lam_im_min= qtilde / 4 * (d_d2_eig)
 
 
     #Minimum imag eigenvalue
