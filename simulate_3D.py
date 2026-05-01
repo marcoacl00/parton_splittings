@@ -16,7 +16,13 @@ def main():
 
     dir = "simulations/"
 
-    simul = simulate3D(sis, ht, L_medium)
+    if algorithm == "faber":
+        simul = simulate3D(sis, ht, L_medium, step_save=10)
+    
+    elif algorithm == "euler":
+        simul = simulate_euler(sis, ht, L_medium, step_save=500)
+    else:
+        raise ValueError("Unknown algorithm: {}".format(algorithm))
 
     if not os.path.exists(dir):
         os.makedirs(dir)
@@ -58,6 +64,7 @@ if __name__ == "__main__":
     parser.add_argument("--ht", type=float, default=0.0025, help="Time step")
     parser.add_argument("--NcMode", type=str, default=None, help="Nc mode (default: LNcFac)")
     parser.add_argument("--vertex", type=str, default="q_qg", help="Vertex type: 'gamma_qq' or 'q_qg' (default: 'q_qg')")
+    parser.add_argument("--algorithm", type=str, default="faber", help="Time integration algorithm: 'faber' or 'euler' (default: 'faber')")
     args = parser.parse_args()
 
     # Set parameters from command line or defaults
@@ -73,6 +80,7 @@ if __name__ == "__main__":
     ht = args.ht
     NcMode = args.NcMode if args.NcMode is not None else "LNcFac"
     vertex = args.vertex
+    algorithm = args.algorithm
 
     # Print parameters for debugging
     print(f"Parameters: E={E}, z={z}, qtilde={qtilde}, Lk={Lk}, Ll={Ll}, Nk={Nk}, Nl={Nl}, Npsi={Npsi}, L_medium={L_medium}, ht={ht}, NcMode={NcMode}, vertex={args.vertex}")

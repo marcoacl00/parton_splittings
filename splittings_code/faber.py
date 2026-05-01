@@ -19,15 +19,15 @@ def faber_params3D(sys):
     omega = sys.omega
 
     #Maximum real eigenvalue estimate
-    lam_re_max = 2 * Lk * Ll / (omega) 
+    lam_re_max =  Lk * Ll / (omega) 
 
     #Minimum real eigenvalue
 
-    lam_re_min = -2 * Lk * Ll / (omega) -  qtilde / 4 * 1/dl**2 - 3 * qtilde / 4 * 1/dk**2
+    lam_re_min = - Lk * Ll / (omega) -  qtilde / 4 * 1/dl**2 - 3 * qtilde / 4 * 1/dk**2
 
     
     #Maximum imag eigenvalue
-    d_d2_eig = - 8 * (1/dk**2) - 8 * (1/dl**2) - 4/dl**2 * 1/dpsi**2
+    d_d2_eig = - 8 * (1/dk**2) - 8 * (1/dl**2) - 4/dl**2 * 4/dpsi**2
 
     lam_im_min= qtilde / 4 * (d_d2_eig)
 
@@ -41,7 +41,7 @@ def faber_params3D(sys):
     c = (lam_re_max - lam_re_min)/2
     l = (lam_im_max - lam_im_min)/2
 
-    lambda_F = (l**(2/3) + c**(2/3))**(3/2) / 2
+    lambda_F = 1.5 *(l**(2/3) + c**(2/3))**(3/2) / 2
 
     one_lamb = 1/lambda_F
 
@@ -69,7 +69,7 @@ def coeff(m, dt1, gamma_0, gamma_1, lambF, optim):
 
 
 
-def faber_expand3D(sys, ht, gamma0, gamma1, one_lamb, coeff_array=None):
+def faber_expand3D(sys, ht, gamma0, gamma1, one_lamb, apply_hamil, coeff_array=None):
     """Computes e^(-iHdt)f using the Faber expansion. 
     Takes a 4D vector F, the number of polynomials 
     Np and the potential field V"""
@@ -78,19 +78,20 @@ def faber_expand3D(sys, ht, gamma0, gamma1, one_lamb, coeff_array=None):
 
     
     fH_0 = 1.0 * sys.Fsol
-    fH_1 = apply_hamil_3D(sys, fH_0) * one_lamb
+    fH_1 = apply_hamil(sys, fH_0) * one_lamb
    
     fH_1 -= gamma0 * fH_0
-    fH_2 = apply_hamil_3D(sys, fH_1) * one_lamb
+    fH_2 = apply_hamil(sys, fH_1) * one_lamb
     fH_2 += -gamma0 * fH_1 - 2 * gamma1*fH_0
     Uf_est = coeff_array[0] * fH_0 + coeff_array[1] * fH_1 + coeff_array[2] * fH_2
+    
     #print("norm of zero order term: ", np.linalg.norm(fH_0))
     #print("norm of first order term: ", np.linalg.norm(fH_1))
     #print("norm of second order term: ", np.linalg.norm(fH_2))
     for k in range(3, len(coeff_array)):
         fH_0 = fH_1
         fH_1 = fH_2
-        fH_2 = apply_hamil_3D(sys, fH_1) * one_lamb
+        fH_2 = apply_hamil(sys, fH_1) * one_lamb
         fH_2 += -gamma0 * fH_1 - gamma1*fH_0
         Uf_est += coeff_array[k] * fH_2
         #print(f"norm of order {k} term: ", np.linalg.norm(coeff_array[k] * fH_2))

@@ -21,7 +21,7 @@ class physys3D:
         self.prec_c = np.result_type(1j * prec(1))
         self.optimization = optimization
 
-        fm = prec(5.067)
+        fm = prec(5.06773065)
         self.fm = fm
         self.E = prec(E * fm)
         self.qtilde = prec(qtilde * fm**2)
@@ -37,10 +37,10 @@ class physys3D:
         self.t = 1e-8 #initial time
         
         if self.vertex == "gamma_qq":
-            if self.Ncmode == "LNc" or "LNcFac":
+            if self.Ncmode == "LNc" or self.Ncmode == "LNcFac":
                 CF = 3/2 #now we use this for the computation of qab
             else:
-                CF = (3**2 - 1) / (2 * 3)
+                CF = 4/3 #(3**2 - 1) / (2 * 3)
             qab = self.qtilde * CF
             self.Omega = (1 - 1j)/2 * prec(np.sqrt(qab / self.omega))
 
@@ -52,7 +52,7 @@ class physys3D:
             if self.Ncmode == "LNc" or self.Ncmode == "LNcFac":
                 CF = 3/2
                 
-            qab = 0.5 * ((CA) * (z) + CF * (1-z)**2) * self.qtilde
+            qab = ((1-z) * CA + z**2 * CF) * self.qtilde
             
             self.Omega = (1 - 1j)/2 * prec(np.sqrt(qab / self.omega))
 
@@ -85,7 +85,7 @@ class physys3D:
         elif vertex == "q_qg":
             self.Nsig = 3
         elif vertex == "g_gg":
-            self.Nsig = 8
+            self.Nsig = 6
         else:
             raise ValueError("Invalid vertex")
             
@@ -100,20 +100,19 @@ class physys3D:
             print("Using GPU optimization")
             self.K = cp.linspace(deltae, self.Lk + deltae, Nk, dtype=self.prec)
             self.L = cp.linspace(0, self.Ll, Nl, dtype=self.prec)
-            self.psi = cp.linspace(0, 2*np.pi, Npsi, dtype=self.prec)
+            self.psi = cp.linspace(0, np.pi, Npsi, dtype=self.prec)
 
         else:
             deltae = self.Lk / (Nk - 1)
             print("Warning: Using CPU. Simulation can take longer.")
             self.K = np.linspace(deltae, self.Ll + deltae, Nk, dtype=self.prec)
             self.L = np.linspace(0, self.Ll, Nl, dtype=self.prec)
-            self.psi = np.linspace(0, 2*np.pi, Npsi, dtype=self.prec)
-
+            self.psi = np.linspace(0, np.pi, Npsi, dtype=self.prec)
+        print(self.psi)
         self.dk = self.K[1] - self.K[0]
         self.dl = self.L[1] - self.L[0]
         #self.psi = self.psi[:-1]  #to avoid double counting 0 and 2pi
         self.dpsi = self.psi[1] - self.psi[0]
-        print(self.psi)
 
     def print_dim(self):
         """Print the dimensions of the system for all axis p1, p2, q1 and q2"""
@@ -139,11 +138,37 @@ class physys3D:
         lsqrd = L**2
         kdotl = K * L * np.cos(psi)
 
-        fac1 = (ksqrd - lsqrd)/(ksqrd+ lsqrd + 2 * kdotl)
+
+        fac1 = (ksqrd - lsqrd)/(ksqrd + lsqrd + 2 * kdotl)
 
         fac2 = 1 - np.exp(-(ksqrd + lsqrd + 2*kdotl) / (4 * Gamma))
 
         non_hom_term = - constant * fac1 * fac2 
+
+        denom = (ksqrd + lsqrd + 2 * kdotl) 
+        small = np.abs(denom) < 1e-6
+
+
+        # force full broadcasting
+        ksqrd_b = ksqrd + 0 * psi
+        lsqrd_b = lsqrd + 0 * psi
+
+        result = cp.empty_like(denom, dtype=cp.complex128)
+
+        # regular region
+        result[~small] = (
+            -constant
+            * (ksqrd_b - lsqrd_b)[~small] / denom[~small]
+            * (1 - cp.exp(-denom[~small] / (4 * Gamma)))
+        )
+
+        # limiting form
+        result[small] = (
+            -constant
+            * (ksqrd_b - lsqrd_b)[small]
+            / (4 * Gamma)
+        )
+        
 
         return non_hom_term
     

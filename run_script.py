@@ -3,7 +3,7 @@ from itertools import product
 import numpy as np
 
 def run_simulation(
-    E, z, qtilde, Nk, Nl, Npsi, Lk=None, Ll=None, L_medium=2, ht=0.01, NcMode="FNc", vertex="q_qg"):
+    E, z, qtilde, Nk, Nl, Npsi, Lk=None, Ll=None, L_medium=2, ht=0.01, NcMode="FNc", vertex="q_qg", algorithm="faber"):
 
     cmd = [
         "python3", "simulate_3D.py",
@@ -17,6 +17,7 @@ def run_simulation(
         "--ht", str(ht),
         "--NcMode", str(NcMode)
         ,"--vertex", str(vertex)
+        ,"--algorithm", str(algorithm)
     ]
     if Lk is not None:
         cmd += ["--Lk", str(Lk)]
@@ -28,8 +29,10 @@ def run_simulation(
 
 
 def alpha_(omega):
+    if omega < 0.5:
+        return 15
     if omega < 1:
-        return 10
+        return 9
     if omega < 1.5:
         return 7
     if omega < 2:
@@ -41,15 +44,15 @@ def alpha_(omega):
     if omega < 10:
         return 1.6
     if omega < 15:
-        return 1.4
+        return 1.5
     if omega < 20:
-        return 1.3
+        return 1.4
     if omega < 30:
-        return 1.2
+        return 1.3
     if omega < 50:
-        return 1
+        return 1.2
     if omega < 70:
-        return 0.8
+        return 1.1
     if omega < 100:
         return 0.7
     return 0.6
@@ -62,24 +65,35 @@ if __name__ == "__main__":
     #The parameters are passed to the simulate_new_momentum.py script.
 
     # Example usage: put here the parameters you want to test
-    Zsym = [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.08, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5]
-    Zasym = [1 - Zsym[i] for i in range(len(Zsym)) if Zsym[i] != 0.5]
+    
+    #Zsym = [0.494949495]
+    Zsym = [0.5]
+    #Zsym = [0.05, 0.06, 0.08, 0.1] 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.08, 
+    #QZsym = [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5]
+    #Zasym = [1 - Zsym[i] for i in range(len(Zsym)) if Zsym[i] != 0.5]
 
-    Z = sorted(Zsym + Zasym)
-    #Z = [0.5]
-    E = [500]
+    Z = sorted(Zsym)
+    #Z = [0.03]
+    #Z = [0.04]
+    E = [50]
     L = [4]
 
-    Qtilde = [1.5] #this is qF/CF, which is color independent
+
+    NCModes = ["LNc"]
+
+
+    Qtilde = [2/3] #this is qF/CF = qA/CA, which is color independent
 
     print("Computing simulations for the following z values:")
     print(Z)
-    for z, En, Len, qtilde in product(Z, E, L, Qtilde):
+    for z, En, Len, qtilde, Ncmode in product(Z, E, L, Qtilde, NCModes):
         
         print(f"\n .: Running simulation for:  E = {En} GeV | z = {z} | L = {Len} fm | qtilde = {qtilde} GeV²/fm :. \n")
         
-        alpha = alpha_(En*z*(1-z))
-        beta = 1 * alpha
+        alpha = alpha_(z * (1-z) * En)
+        fac = 1.1 if z < 0.05 else 0.5
+
+        beta =  fac * alpha
         print("alpha =", alpha)
 
         run_simulation(
@@ -88,9 +102,9 @@ if __name__ == "__main__":
             qtilde=qtilde,
 
             #ajust Lk and Ll based on precision and performance considerationsz
-            Nk = 120 if z <= 0.1 or z >= 0.9 else 200,
-            Nl = 60,
-            Npsi = 32,
+            Nk = 180 if z <= 0.1 or z >= 0.9 else 200, 
+            Nl = 60 if z <= 0.07 or z >= 0.93 else 100,
+            Npsi = 6,
 
             Lk =  alpha * (1-z) * z * En,
             Ll =  beta * (1-z) * z * En,
@@ -98,6 +112,7 @@ if __name__ == "__main__":
             L_medium=Len,
 
             ht= 0.01, #time step
-            NcMode="LeadNc", #LNcFac, LNc, FNc
-            vertex = "q_qg" # "gamma_qq", "q_qg" or "g_gg"
+            NcMode= Ncmode, #LNcFac, LNc, FNc, LNc_qeff
+            vertex = "gamma_qq", # "gamma_qq", "q_qg" or "g_gg"
+            algorithm = "faber" # "faber" or "euler"
         )

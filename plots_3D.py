@@ -59,21 +59,21 @@ def main(file_name):
 
     print(f"Parameters extracted: E={E}, z={z}, qtilde={qtilde_}, Lk={Lk}, Ll={Ll}, Nk={Nk}, Nl={Nl}, Npsi={Npsi}, L={L}, NcMode={NcMode}")
 
-    fm = 5.067
+    fm = 5.06773065
     # Convert units from GeV to fm
     E = E * fm
     qtilde = qtilde_ * fm**2
     Lk = Lk * fm
     Ll = Ll * fm
     Nc = 3
-    CF = (Nc**2 - 1) / (2 * Nc)
+    CF = 4/3
     
     CA = Nc
 
     omega = z * (1-z) * E
 
     if NcMode == "LNc" or NcMode == "LNcFac":
-        CF = Nc/2
+        CF = 3/2
 
 
     if vertex == "gamma_qq":
@@ -83,7 +83,7 @@ def main(file_name):
 
     elif vertex == "q_qg":
             
-        qab = 0.5 * ((CA) * (z) + CF * (1-z)**2) * qtilde
+        qab = ((1-z) * CA + z**2 * CF) * qtilde
         Omega = (1 - 1j)/2 *np.sqrt(qab / omega)
 
     
@@ -97,13 +97,12 @@ def main(file_name):
     eps = Lk / (Nk - 1)
     grid_k = np.linspace(0, Lk, Nk) + eps
     grid_l = np.linspace(0, Ll, Nl) 
-    grid_psi = np.linspace(0, 2*np.pi, Npsi)
+    grid_psi = np.linspace(0, np.pi, Npsi)
 
 
 
     Theta = grid_k / omega
     # Interpolator for array[1]
-    #interp = RegularGridInterpolator((grid_k1, grid_k2, grid_l1, grid_l2), array[1], bounds_error=False)
 
 
     f_vals_theo = .0 * Theta * 1j
@@ -114,10 +113,10 @@ def main(file_name):
         gz = z**2 + (1 - z)**2
 
     elif vertex == 'q_qg':
-        gz = (1 + z * (-2 + 3 * z))
+        gz = (1 + (1-z) * (-2 + 3 * (1-z)))
 
     else:
-        gz = z**2 + (1 - z)**2
+        gz = 2 * (z**2 + (1 - z)**2 )
 
     
     
@@ -133,12 +132,13 @@ def main(file_name):
     dpsi = grid_psi[1] - grid_psi[0]
     for i in range(len(Theta)):
         # collect the integrand values for all psi
-        integrand = np.real(array[1, i, 0, :]) * Theta[i]**2 / 2
+        integrand = np.real(array[1, i, 0, :]) 
 
 
         # apply Simpson's 1/3 rule
-        F_med_sim[i] = (1 / (2 * np.pi)) * simpson(integrand, dx=dpsi)
-       # F_med_sim[i] = np.real(array[1, i, 0, 0]) * Theta[i]**2 / 2
+        
+        F_med_sim[i] = (1 / (np.pi)) * simpson(integrand, dx=dpsi) * Theta[i]**2 / 2
+        #F_med_sim[i] = np.real(array[1, i, 0, 10]) * Theta[i]**2 / 2
 
 
     Fmed_ii_theo = Theta**2 /2 * np.real(f_vals_theo)

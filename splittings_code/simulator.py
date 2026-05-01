@@ -18,9 +18,10 @@ def integrate_solution3D(sis):
         integrand = np.real(array[i, 0, :]) * Theta[i]**2 / 2
         # apply Simpson's 1/3 rule
         #
-        F_med_sim[i] = (1 / (2 * np.pi)) * simpson(integrand, dx=dpsi)
+        F_med_sim[i] = (1 / (np.pi)) * simpson(integrand, dx=dpsi)
 
     return F_med_sim
+
 
 def simulate3D(sist, ht, t_L, step_save=10):
     """
@@ -55,7 +56,7 @@ def simulate3D(sist, ht, t_L, step_save=10):
     if sis.vertex == "gamma_qq":
         for _ in tqdm(time_list):
             # Simpson rule: initial non-homogeneous term
-            nHom = sis.source_term_array(sis.t)
+            nHom = sis.source_term_array(sis.t + ht)
             nFsol = sis.Fsol
             nFsol[0] += nHom * ht / 6
             nFsol[1] += nHom * ht / 6
@@ -63,7 +64,7 @@ def simulate3D(sist, ht, t_L, step_save=10):
 
             # Simpson rule: mid-point non-homogeneous term
             # Faber expansion for full step
-            f_sol_n = faber_expand3D(sis, ht, gamma0, gamma1, one_lamb, coeff_array)
+            f_sol_n = faber_expand3D(sis, ht, gamma0, gamma1, one_lamb, apply_hamil_3D, coeff_array)
 
             sis_aux = sis
 
@@ -72,10 +73,10 @@ def simulate3D(sist, ht, t_L, step_save=10):
 
             sis_aux.set_fsol(nHom_dt_2)
 
-            f_term_2 = faber_expand3D(sis_aux, ht / 2, gamma0, gamma1, one_lamb, coeff_array_2)
+            f_term_2 = faber_expand3D(sis_aux, ht / 2, gamma0, gamma1, one_lamb, apply_hamil_3D, coeff_array_2)
 
             # Simpson rule: final non-homogeneous term
-            nHom_end = sis.source_term_array(sis.t + ht)
+            nHom_end = sis.source_term_array(sis.t)
 
             # Complete Simpson rule update
             nFsol = f_sol_n + 4 / 6 * f_term_2 * ht
@@ -87,6 +88,10 @@ def simulate3D(sist, ht, t_L, step_save=10):
             if cont % step_save == 0:
                 F_med_ii = integrate_solution3D(sis)
                 save_dir = "saved_fmeds_ii/gamma_qq/"
+                energy_dir = "_{}/".format(int(sis.E/sis.fm))
+
+                spec_dir = sis.Ncmode + energy_dir
+                save_dir += spec_dir
 
                 if not os.path.exists(save_dir):
                     os.makedirs(save_dir)
@@ -114,16 +119,16 @@ def simulate3D(sist, ht, t_L, step_save=10):
     elif sis.vertex == "q_qg":
         for _ in tqdm(time_list):
             # Simpson rule: initial non-homogeneous term
-            nHom = sis.source_term_array(sis.t)
+            nHom = sis.source_term_array(sis.t + ht)
             nFsol = sis.Fsol
             nFsol[0] += nHom * ht / 6
             nFsol[1] += nHom * ht / 6
-            nFsol[2] += nHom * ht / 6
+            #nFsol[2] += nHom * ht / 6
             sis.set_fsol(nFsol)
 
             # Simpson rule: mid-point non-homogeneous term
             # Faber expansion for full step
-            f_sol_n = faber_expand3D(sis, ht, gamma0, gamma1, one_lamb, coeff_array)
+            f_sol_n = faber_expand3D(sis, ht, gamma0, gamma1, one_lamb, apply_hamil_3D, coeff_array)
 
             sis_aux = sis
 
@@ -134,22 +139,26 @@ def simulate3D(sist, ht, t_L, step_save=10):
 
             sis_aux.set_fsol(nHom_dt_2)
 
-            f_term_2 = faber_expand3D(sis_aux, ht / 2, gamma0, gamma1, one_lamb, coeff_array_2)
+            f_term_2 = faber_expand3D(sis_aux, ht / 2, gamma0, gamma1, one_lamb, apply_hamil_3D, coeff_array_2)
 
             # Simpson rule: final non-homogeneous term
-            nHom_end = sis.source_term_array(sis.t + ht)
+            nHom_end = sis.source_term_array(sis.t)
 
             # Complete Simpson rule update
             nFsol = f_sol_n + 4 / 6 * f_term_2 * ht
             nFsol[0] += nHom_end * ht / 6
             nFsol[1] += nHom_end * ht / 6
-            nFsol[2] += nHom_end * ht / 6
+            #nFsol[2] += nHom_end * ht / 6
 
             sis.set_fsol(nFsol)
 
             if cont % step_save == 0:
                 F_med_qq = integrate_solution3D(sis)
                 save_dir = "saved_fmeds_ii/q_qg/"
+                energy_dir = "_{}/".format(int(sis.E/sis.fm))
+
+                spec_dir = sis.Ncmode + energy_dir
+                save_dir += spec_dir
 
                 if not os.path.exists(save_dir):
                     os.makedirs(save_dir)
@@ -180,7 +189,7 @@ def simulate3D(sist, ht, t_L, step_save=10):
         for _ in tqdm(time_list):
             # Simpson rule: initial non-homogeneous term
             c = np.ones(sis.Nsig)
-            c[6] = 0.0
+            c[3] = 0.0
 
             nHom = sis.source_term_array(sis.t)
             nFsol = sis.Fsol
@@ -190,7 +199,7 @@ def simulate3D(sist, ht, t_L, step_save=10):
 
             # Simpson rule: mid-point non-homogeneous term
             # Faber expansion for full step
-            f_sol_n = faber_expand3D(sis, ht, gamma0, gamma1, one_lamb, coeff_array)
+            f_sol_n = faber_expand3D(sis, ht, gamma0, gamma1, one_lamb, apply_hamil_3D, coeff_array)
 
             sis_aux = sis
 
@@ -199,7 +208,7 @@ def simulate3D(sist, ht, t_L, step_save=10):
 
             sis_aux.set_fsol(nHom_dt_2)
 
-            f_term_2 = faber_expand3D(sis_aux, ht / 2, gamma0, gamma1, one_lamb, coeff_array_2)
+            f_term_2 = faber_expand3D(sis_aux, ht / 2, gamma0, gamma1, one_lamb, apply_hamil_3D, coeff_array_2)
 
             # Simpson rule: final non-homogeneous term
             nHom_end = sis.source_term_array(sis.t + ht)
@@ -214,6 +223,9 @@ def simulate3D(sist, ht, t_L, step_save=10):
             if cont % step_save == 0:
                 F_med_gg = integrate_solution3D(sis)
                 save_dir = "saved_fmeds_ii/g_gg/"
+                energy_dir = "_{}/".format(int(sis.E/sis.fm))
+                spec_dir = sis.Ncmode + energy_dir
+                save_dir += spec_dir
 
                 if not os.path.exists(save_dir):
                     os.makedirs(save_dir)
